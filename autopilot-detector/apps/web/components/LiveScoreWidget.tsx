@@ -80,10 +80,9 @@ export function LiveScoreWidget() {
             cx="150"
             cy="150"
             r="105"
-            stroke="white"
+            stroke="black"
             strokeWidth="16"
             fill="transparent"
-            stroke="black"
           />
           <circle
             cx="150"
