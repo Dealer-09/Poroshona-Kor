@@ -16,6 +16,11 @@ interface AuthenticatedRequest extends Request {
 export class SessionsController {
   constructor(private readonly sessionsService: SessionsService) {}
 
+  @Get()
+  async getAllSessions(@Req() req: any) {
+    return this.sessionsService.getAllSessions(req.user.id);
+  }
+
   @Get('current')
   async getCurrentSession(@Req() req: AuthenticatedRequest) {
     return this.sessionsService.getCurrentSession(req.user.id);
