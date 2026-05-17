@@ -11,6 +11,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { BullModule } from '@nestjs/bullmq';
 import { BullBoardModule } from '@bull-board/nestjs';
 import { ExpressAdapter } from '@bull-board/express';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ExpressAdapter } from '@bull-board/express';
     SessionsModule,
     QueuesModule,
     AnalyticsModule,
+    AiModule,
   ],
 })
 export class AppModule {}

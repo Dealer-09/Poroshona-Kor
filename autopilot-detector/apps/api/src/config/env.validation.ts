@@ -3,6 +3,8 @@ const requiredKeys = [
   'JWT_SECRET',
   'REDIS_URL',
   'PORT',
+  'GEMINI_API_KEY',
+  'GROQ_API_KEY',
 ] as const;
 
 export function validateEnv(env: Record<string, string | undefined>) {

@@ -1,131 +1,49 @@
-# 🧠 Digital Autopilot Detector
+# Digital Autopilot Detector
 
-> Breaking the loop of doomscrolling through intelligent, context-aware conscious friction.
+Digital Autopilot Detector is an end-to-end system designed to help you break free from doomscrolling and regain your focus. It uses a Chrome Extension to track your behavioral signals (e.g. scroll velocity, tab switching) and a NestJS backend powered by Gemini and Groq AI models to intervene when your "Autopilot Score" crosses critical thresholds.
 
-## 🌟 The Significance & Solution
+## Architecture
+- **apps/api**: NestJS backend with WebSocket integration, Prisma ORM, BullMQ for job queues, and pgvector.
+- **apps/web**: Next.js 15 dashboard to visualize your cognitive drift and session history.
+- **apps/extension**: Chrome MV3 Extension built with Vite to track signals passively and display interventions.
+- **packages/shared**: Shared TypeScript definitions across the monorepo.
 
-**The Scenario:** Modern web experiences are optimized for infinite consumption. Users frequently fall into an "autopilot" state—mindless scrolling, rapid tab-switching, and passive consumption—losing hours of time and cognitive focus without realizing it. 
+## Prerequisites
+- [Bun](https://bun.sh/) installed locally
+- Docker (for local Postgres & Redis)
+- A Supabase project (if not running Postgres locally)
 
-**Our Solution (The MVP):** The Digital Autopilot Detector is a systemic approach to digital wellbeing. Instead of hard-blocking applications, it passively monitors behavioral signals (scroll velocity, interaction rates, idle time) to detect when a user has slipped into autopilot. Once detected, it introduces **conscious friction**—such as gentle nudges, screen dimming, or reflection prompts—forcing the user to actively re-evaluate their current digital intent. 
+## Setup & Running Locally
 
----
+1. **Install dependencies:**
+   ```bash
+   bun install
+   ```
 
-## 🛠️ Tech Stack
+2. **Environment Variables:**
+   Copy the example environment files for the API and Web apps.
+   ```bash
+   cp apps/api/.env.example apps/api/.env
+   cp apps/web/.env.example apps/web/.env.local
+   ```
+   **Important:** You must populate `GEMINI_API_KEY` and `GROQ_API_KEY` in `apps/api/.env`.
 
-This project is structured as a high-performance **Turborepo** monorepo, utilizing the following core technologies:
+3. **Start the local database (Postgres/Redis):**
+   *(Assuming you have a docker-compose.yml set up, or just use external URLs)*
+   ```bash
+   make dev-deps
+   ```
 
-### **Frontend & Extension**
-- **Web Dashboard:** [Next.js 16](https://nextjs.org/) (App Router), [React 19](https://react.dev/), Tailwind CSS, Recharts
-- **Browser Extension:** Chrome Extensions API (Manifest V3), Vite
+4. **Run the development servers:**
+   ```bash
+   bun run dev
+   ```
+   This uses Turborepo to spin up the API, Web dashboard, and rebuild the extension in watch mode.
 
-### **Backend API**
-- **Core Framework:** [NestJS 11](https://nestjs.com/)
-- **Real-Time Engine:** WebSockets (`socket.io`)
-- **Job Queues:** [BullMQ](https://docs.bullmq.io/) + Redis (for asynchronous AI tasks)
-- **Authentication:** Custom JWT Strategy with `argon2id` hashing
+## Loading the Chrome Extension
 
-### **Data & AI Layer**
-- **Database:** PostgreSQL hosted on [Supabase](https://supabase.com/)
-- **ORM:** [Prisma](https://www.prisma.io/) (v7.8) with `@prisma/adapter-pg`
-- **Vector Storage:** `pgvector` for embedding session context
-- **LLM / GenAI:** Gemini (`embedding-001`) for session embeddings, Claude (Anthropic) for RAG-powered reflection interventions.
-
----
-
-## 🏗️ System Architecture & User Flow
-
-The system operates on a continuous feedback loop between the client extension and the real-time API.
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Ext as Chrome Extension
-    participant API as NestJS Backend
-    participant DB as Supabase (PostgreSQL)
-    participant AI as LLM / Vector Engine
-    participant Dash as Next.js Dashboard
-
-    User->>Ext: Browses Web (Scrolling, Clicking)
-    Ext->>Ext: Tracks Passive & Active Signals
-    Ext->>API: Streams Batched Signals (WebSockets)
-    
-    API->>API: Calculates 'Autopilot Score'
-    API->>DB: Stores Session & Signal Data
-    
-    alt Score > Intervention Threshold
-        API->>AI: Fetches Past Session Context (pgvector)
-        AI-->>API: Generates Contextual Nudge
-        API->>Ext: Emits Intervention Trigger
-        Ext->>User: Displays Nudge / Screen Dim
-    end
-    
-    User->>Dash: Opens Dashboard
-    Dash->>API: Fetches Cognitive Health Heatmap
-    API-->>Dash: Returns Historical Data
-```
-
----
-
-## 💻 Local Setup Instructions
-
-Follow these steps to run the complete monorepo locally.
-
-### 1. Prerequisites
-- **[Bun](https://bun.sh/)** installed on your machine.
-- A **PostgreSQL** database (Supabase highly recommended).
-- A **Redis** server running locally or remotely (e.g., `redis://localhost:6379`).
-
-### 2. Installation
-Clone the repository and install all dependencies from the root directory:
-```bash
-git clone https://github.com/Dealer-09/Poroshona-Kor.git
-cd Poroshona-Kor/autopilot-detector
-bun install
-```
-
-### 3. Environment Configuration
-Navigate to the API app and set up your environment variables:
-```bash
-cd apps/api
-cp .env.example .env
-```
-Update the `.env` file with your credentials:
-```env
-DATABASE_URL="postgresql://[USER]:[PASSWORD]@[HOST]:6543/postgres?pgbouncer=true"
-DIRECT_URL="postgresql://[USER]:[PASSWORD]@[HOST]:5432/postgres"
-JWT_SECRET="your_secure_secret_key"
-REDIS_URL="redis://localhost:6379"
-PORT=3000
-```
-
-### 4. Database Initialization
-Generate the Prisma client and push the schema to your database:
-```bash
-# Still inside apps/api
-bunx prisma generate
-bunx prisma db push
-```
-
-### 5. Start the Application
-Return to the root `autopilot-detector` directory and launch the entire stack:
-```bash
-cd ../..
-bun run dev
-```
-This command utilizes Turborepo to simultaneously start the NestJS API, Next.js Web Dashboard, and the Vite build process for the Chrome Extension.
-
----
-
-## 🚀 Future Scope (The Finale)
-
-While the MVP relies on heuristic formulas to calculate the Autopilot Score, our final vision incorporates true predictive analytics and broader ecosystem integration:
-
-1. **Machine Learning Microservice:** 
-   - A dedicated Python FastAPI service running **XGBoost** with GPU acceleration.
-   - Will replace heuristic scores by predicting doomscroll probability based on trained datasets of real user behavioral windows.
-2. **AI Reflection Chat (RAG):**
-   - An interactive coaching interface within the dashboard that uses `pgvector` to recall past sessions and discuss triggers with the user contextually.
-3. **Advanced Cognitive Health Analytics:**
-   - 7x24 heatmaps identifying the user's "Riskiest Hours" and "Healthiest Days".
-4. **Mobile App Integration:**
-   - Expanding the tracking ecosystem to native mobile platforms using React Native, utilizing screen-time APIs to aggregate mobile and desktop habits into a single cognitive profile.
+1. Open Chrome and go to `chrome://extensions/`.
+2. Enable **Developer mode** (top right corner).
+3. Click **Load unpacked**.
+4. Select the `apps/extension/dist` folder in this project directory.
+5. You can now use the extension popup to set your intent and start a session!

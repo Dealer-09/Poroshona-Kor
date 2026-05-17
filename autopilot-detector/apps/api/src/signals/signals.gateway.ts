@@ -11,9 +11,10 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
-import { UsePipes, ValidationPipe, ParseArrayPipe } from '@nestjs/common';
+import { UsePipes, ValidationPipe, ParseArrayPipe, OnModuleInit } from '@nestjs/common';
 import { StartSessionDto, BehavioralSignalDto } from './dto/signals.dto';
 import { AutopilotScoreService } from './autopilot-score.service';
+import { InterventionTimingService } from './intervention-timing.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 
@@ -24,7 +25,7 @@ interface JwtPayload {
 
 @WebSocketGateway({ cors: true })
 export class SignalsGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
+  implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit
 {
   @WebSocketServer()
   server: Server;
@@ -34,8 +35,24 @@ export class SignalsGateway
     private prisma: PrismaService,
     private redisService: RedisService,
     private scoreService: AutopilotScoreService,
-    @InjectQueue('ai-intervention') private aiQueue: Queue,
+    private timingService: InterventionTimingService,
+    @InjectQueue('embedding') private embeddingQueue: Queue,
   ) {}
+
+  async onModuleInit() {
+    const subscriber = this.redisService.getClient().duplicate();
+    await subscriber.subscribe('interventions');
+    subscriber.on('message', (channel, message) => {
+      if (channel === 'interventions') {
+        try {
+          const payload = JSON.parse(message);
+          this.server.to(`user:${payload.userId}`).emit('intervention:trigger', payload.intervention);
+        } catch (e) {
+          console.error('Failed to parse intervention message', e);
+        }
+      }
+    });
+  }
 
   handleConnection(client: Socket) {
     try {
@@ -52,6 +69,7 @@ export class SignalsGateway
       const clientData = client.data as { user?: JwtPayload };
       clientData.user = decoded;
       
+      // Join user-specific room
       client.join(`user:${decoded.sub}`);
     } catch {
       client.disconnect();
@@ -98,6 +116,10 @@ export class SignalsGateway
     await this.prisma.session.update({
       where: { id: payload.sessionId },
       data: { endedAt: new Date() },
+    });
+
+    await this.embeddingQueue.add('generate-embedding', {
+      sessionId: payload.sessionId,
     });
 
     this.server.to(`user:${userId}`).emit('session:ended', { sessionId: payload.sessionId });
@@ -172,13 +194,12 @@ export class SignalsGateway
         JSON.stringify(autopilotScore, null, 2),
       );
 
-      // Trigger AI Intervention job if score breaches the NUDGE threshold
-      if (autopilotScore.score > 60) {
-        await this.aiQueue.add('generate-intervention', {
-          sessionId,
-          score: autopilotScore.score,
-          signals: parsedSignals,
-        });
+      // Trigger AI Intervention job if score breaches the NUDGE threshold (or SLEEP_MODE threshold)
+      if (autopilotScore.score > 50) {
+        const session = await this.prisma.session.findUnique({ where: { id: sessionId }});
+        if (session) {
+          await this.timingService.evaluateAndTrigger(session, autopilotScore.score, parsedSignals);
+        }
       }
     }
   }
