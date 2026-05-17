@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Request } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AiChatService } from './ai-chat.service';
 
@@ -17,5 +17,11 @@ export class AiController {
       body.message,
     );
     return { response };
+  }
+
+  @Get('daily-summary')
+  async getDailySummary(@Request() req: { user: { id: string } }) {
+    const summary = await this.chatService.generateDailySummary(req.user.id);
+    return { summary };
   }
 }

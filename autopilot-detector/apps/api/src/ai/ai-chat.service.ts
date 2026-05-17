@@ -78,5 +78,67 @@ export class AiChatService {
       return "I encountered an error connecting to my AI brain. Please try again later.";
     }
   }
+  async generateDailySummary(userId: string): Promise<string> {
+    const userGroqKey = await this.usersService.getRawGroqApiKey(userId);
+    const activeKey = userGroqKey || this.serverGroqKey;
+
+    if (!activeKey) {
+      return "No AI API key found. Please add your Groq key in Settings to generate your daily summary.";
+    }
+
+    // Get today's sessions
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const todaysSessions = await this.prisma.session.findMany({
+      where: {
+        userId,
+        startedAt: { gte: today }
+      },
+      include: {
+        interventions: true,
+      },
+      orderBy: { startedAt: 'asc' }
+    });
+
+    if (todaysSessions.length === 0) {
+      return "No sessions recorded today yet. Start a session to see your AI Coach summary!";
+    }
+
+    let summaryPrompt = `Here is the user's timeline of tracked sessions today:\n`;
+    todaysSessions.forEach((s) => {
+      const durationStr = s.endedAt 
+        ? `${Math.round((s.endedAt.getTime() - s.startedAt.getTime())/60000)} mins`
+        : `Ongoing`;
+      summaryPrompt += `- Intent: ${s.declaredIntent} | App: ${s.appOpened} | Duration: ${durationStr} | Peak Score: ${s.peakScore}\n`;
+      if (s.interventions.length > 0) {
+        summaryPrompt += `  (Required ${s.interventions.length} interventions)\n`;
+      }
+    });
+
+    try {
+      const groq = new Groq({ apiKey: activeKey });
+      const completion = await groq.chat.completions.create({
+        model: 'llama-3.1-8b-instant',
+        max_tokens: 150,
+        temperature: 0.6,
+        messages: [
+          {
+            role: 'system',
+            content: `You are the Digital Autopilot Coach. Your job is to analyze the user's session timeline for today and provide a high-level, 2-sentence summary of their digital focus. Be specific, non-judgmental, and refer to their intents and apps. Highlight any notable productivity streaks or moments of drift.`,
+          },
+          {
+            role: 'user',
+            content: summaryPrompt,
+          },
+        ],
+      });
+
+      return completion.choices[0]?.message?.content?.trim() ?? "Could not generate summary.";
+    } catch (err) {
+      this.logger.error(`Groq summary failed: ${err}`);
+      return "I encountered an error generating your daily summary. Please check your API key quota.";
+    }
+  }
 }
 

@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { SessionsTable } from "./SessionsTable";
-import { AppInfluenceChart } from "./AppInfluenceChart";
+import { CoachDailySummary } from "./CoachDailySummary";
 
 interface SessionData {
   id: string;
@@ -42,6 +42,16 @@ export default async function SessionsPage() {
         <p className="text-xl font-bold border-b-4 border-black inline-block pb-1 mt-2">TELEMETRY ARCHIVE</p>
       </div>
 
+      <div className="neo-card p-6 bg-neo-secondary">
+        <h3 className="font-black text-2xl uppercase mb-6 bg-black text-white px-4 py-2 inline-block transform rotate-1 shadow-[4px_4px_0_#ff3b30]">
+          Coach's Daily Summary
+        </h3>
+        
+        <div className="min-h-[150px] border-4 border-black bg-white p-6">
+          <CoachDailySummary />
+        </div>
+      </div>
+
       <div className="neo-card p-6 bg-white overflow-hidden">
         <h3 className="font-black text-2xl uppercase mb-6 bg-black text-white px-4 py-2 inline-block transform -rotate-1 shadow-[4px_4px_0_#facc15]">
           All Sessions
@@ -49,16 +59,6 @@ export default async function SessionsPage() {
         
         <div className="overflow-x-auto border-4 border-black">
           <SessionsTable sessions={sessions} />
-        </div>
-      </div>
-
-      <div className="neo-card p-6 bg-neo-secondary">
-        <h3 className="font-black text-2xl uppercase mb-6 bg-black text-white px-4 py-2 inline-block transform rotate-1 shadow-[4px_4px_0_#ff3b30]">
-          App Influence Analysis
-        </h3>
-        
-        <div className="h-[400px] border-4 border-black bg-white p-4">
-          <AppInfluenceChart sessions={sessions} />
         </div>
       </div>
     </div>

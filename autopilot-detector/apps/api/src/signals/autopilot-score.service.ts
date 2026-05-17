@@ -162,8 +162,8 @@ export class AutopilotScoreService {
       if (isSocial) {
         doomscrollProbability = doomscrollProbability * 1.3;
       }
-    } else if (intent === AppIntent.ENTERTAINMENT || intent === AppIntent.RELAXATION) {
-      // Staring passively is fine for relaxing/entertainment
+    } else if (intent === AppIntent.ENTERTAINMENT) {
+      // Staring passively is fine for entertainment
       passiveRatio = passiveRatio * 0.1;
 
       // But catch the high-anxiety doomscroll / task-switch loop
@@ -172,14 +172,18 @@ export class AutopilotScoreService {
       } else {
         doomscrollProbability = (passiveRatio * 0.5) + (focusFragmentation * 0.25) + (scrollVelocityNormalized * 0.3);
       }
-    } else if (intent === AppIntent.AVOIDING_WORK) {
-      doomscrollProbability = (passiveRatio * 0.75) + (focusFragmentation * 0.25) + (scrollVelocityNormalized * 0.3);
+    } else if (intent === AppIntent.PRODUCTIVITY) {
+      // Productivity allows a mix of tools: GitHub, LinkedIn, Docs, Tutorials (YouTube)
+      const isProductiveDomain = isStudyDomain || dominantDomain.includes('linkedin.com') || dominantDomain.includes('youtube.com');
       
-      // User admitted avoiding work. Flat multiplier + extra if on social/entertainment
-      if (isSocial || isEntertainment) {
-        doomscrollProbability = (doomscrollProbability * 1.3) + 0.2;
-      } else {
-        doomscrollProbability = doomscrollProbability * 1.2;
+      doomscrollProbability = (passiveRatio * 0.6) + (focusFragmentation * 0.2) + (scrollVelocityNormalized * 0.3);
+      
+      if (!isProductiveDomain && (isSocial || isEntertainment)) {
+        // Off-task during Productivity intent
+        doomscrollProbability = (doomscrollProbability * 1.4) + 0.15;
+      } else if (isProductiveDomain) {
+        // High focus on productivity tasks is good, reduce score
+        doomscrollProbability = doomscrollProbability * 0.7;
       }
     } else {
       // Default fallback (no intent or unknown)
