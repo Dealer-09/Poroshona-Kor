@@ -8,7 +8,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@autopilot/shared": "workspace:*"
+    "@autopilot/shared": "workspace:*",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",
