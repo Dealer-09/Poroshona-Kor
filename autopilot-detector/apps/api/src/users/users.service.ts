@@ -8,19 +8,26 @@ export class UsersService {
   async getSettings(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, createdAt: true, groqApiKey: true },
+      select: { id: true, email: true, createdAt: true, groqApiKey: true, geminiApiKey: true },
     });
-    // Mask key for display: show last 4 chars only
-    const maskedKey = user?.groqApiKey
-      ? `****${user.groqApiKey.slice(-4)}`
-      : null;
-    return { email: user?.email, createdAt: user?.createdAt, hasGroqKey: !!user?.groqApiKey, maskedKey };
+    // Mask keys for display
+    const maskedGroqKey = user?.groqApiKey ? `****${user.groqApiKey.slice(-4)}` : null;
+    const maskedGeminiKey = user?.geminiApiKey ? `****${user.geminiApiKey.slice(-4)}` : null;
+
+    return { 
+      email: user?.email, 
+      createdAt: user?.createdAt, 
+      hasGroqKey: !!user?.groqApiKey, 
+      maskedGroqKey,
+      hasGeminiKey: !!user?.geminiApiKey,
+      maskedGeminiKey 
+    };
   }
 
-  async updateGroqApiKey(userId: string, apiKey: string | null) {
+  async updateSettings(userId: string, data: { groqApiKey?: string | null, geminiApiKey?: string | null }) {
     await this.prisma.user.update({
       where: { id: userId },
-      data: { groqApiKey: apiKey },
+      data,
     });
     return { success: true };
   }
@@ -33,4 +40,13 @@ export class UsersService {
     });
     return user?.groqApiKey ?? null;
   }
+
+  async getRawGeminiApiKey(userId: string): Promise<string | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { geminiApiKey: true },
+    });
+    return user?.geminiApiKey ?? null;
+  }
 }
+

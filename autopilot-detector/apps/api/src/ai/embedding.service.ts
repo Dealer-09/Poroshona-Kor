@@ -4,19 +4,32 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { Session } from '@prisma/client';
 import { BehavioralSignal } from '@autopilot/shared';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class EmbeddingService {
   private readonly logger = new Logger(EmbeddingService.name);
-  private ai: GoogleGenAI;
+  private readonly serverGeminiKey: string;
 
   constructor(
     private configService: ConfigService,
     private prisma: PrismaService,
+    private usersService: UsersService,
   ) {
-    this.ai = new GoogleGenAI({
-      apiKey: this.configService.get<string>('GEMINI_API_KEY'),
-    });
+    this.serverGeminiKey = this.configService.get<string>('GEMINI_API_KEY') || '';
+  }
+
+  private async getAiClient(userId?: string): Promise<GoogleGenAI> {
+    let activeKey = this.serverGeminiKey;
+    if (userId) {
+      const userKey = await this.usersService.getRawGeminiApiKey(userId);
+      if (userKey) activeKey = userKey;
+    }
+    
+    if (!activeKey) {
+      throw new Error('No Gemini API key available (neither user nor server)');
+    }
+    return new GoogleGenAI({ apiKey: activeKey });
   }
 
   async generateEmbedding(
@@ -27,8 +40,9 @@ export class EmbeddingService {
     this.logger.log(`Generating embedding for session ${session.id}...`);
     
     const summary = this.createSessionSummary(session, signals);
+    const aiClient = await this.getAiClient(session.userId);
 
-    const response = await this.ai.models.embedContent({
+    const response = await aiClient.models.embedContent({
       model: 'gemini-embedding-2',
       contents: summary,
       config: {
@@ -39,6 +53,26 @@ export class EmbeddingService {
 
     if (!response.embeddings || response.embeddings.length === 0 || !response.embeddings[0].values) {
       throw new Error('Failed to generate embedding');
+    }
+
+    return response.embeddings[0].values;
+  }
+
+  async embedQuery(text: string, userId?: string): Promise<number[]> {
+    this.logger.log(`Generating embedding for query: "${text.substring(0, 30)}..."`);
+    const aiClient = await this.getAiClient(userId);
+
+    const response = await aiClient.models.embedContent({
+      model: 'gemini-embedding-2',
+      contents: text,
+      config: {
+        outputDimensionality: 512,
+        taskType: 'RETRIEVAL_QUERY',
+      },
+    });
+
+    if (!response.embeddings || response.embeddings.length === 0 || !response.embeddings[0].values) {
+      throw new Error('Failed to generate query embedding');
     }
 
     return response.embeddings[0].values;

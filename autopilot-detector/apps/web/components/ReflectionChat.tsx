@@ -2,6 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Send, Sparkles } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 interface Message {
   id: string;
@@ -17,6 +20,7 @@ const PREDEFINED_PROMPTS = [
 ];
 
 export function ReflectionChat() {
+  const { token } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -45,18 +49,37 @@ export function ReflectionChat() {
     setInput("");
     setIsTyping(true);
 
-    // TODO: Phase 3 Integration
-    // This is a UI stub for the streaming endpoint. 
-    // Your teammate will replace this setTimeout with a fetch() to the SSE endpoint.
-    setTimeout(() => {
-      const aiMsg: Message = { 
-        id: (Date.now() + 1).toString(), 
-        role: "ai", 
-        content: `[LLM Stub] I see you asked: "${text}". My teammate will connect me to the actual backend in Phase 3. For now, try focusing on intentional browsing!` 
+    try {
+      const res = await fetch(`${API_BASE}/ai/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ message: text }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to get response");
+      }
+
+      const data = await res.json();
+      const aiMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "ai",
+        content: data.response,
       };
       setMessages(prev => [...prev, aiMsg]);
+    } catch (err) {
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "ai",
+        content: "I had trouble connecting to my AI brain. Please try again later.",
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   return (

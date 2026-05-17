@@ -5,19 +5,32 @@ import { EmbeddingService } from '../ai/embedding.service';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../redis/redis.service';
 import Groq from 'groq-sdk';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class InterventionService {
   private readonly logger = new Logger(InterventionService.name);
-  private groq: Groq;
+  private readonly serverGroqKey: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly embeddingService: EmbeddingService,
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
+    private readonly usersService: UsersService,
   ) {
-    this.groq = new Groq({ apiKey: this.configService.get<string>('GROQ_API_KEY') });
+    this.serverGroqKey = this.configService.get<string>('GROQ_API_KEY') || '';
+  }
+
+  private async getGroqClient(userId: string): Promise<Groq> {
+    let activeKey = this.serverGroqKey;
+    const userKey = await this.usersService.getRawGroqApiKey(userId);
+    if (userKey) activeKey = userKey;
+
+    if (!activeKey) {
+      throw new Error('No Groq API key available (neither user nor server)');
+    }
+    return new Groq({ apiKey: activeKey });
   }
 
   async generateIntervention(
@@ -88,7 +101,8 @@ export class InterventionService {
     // 6. Call Groq API
     let message = 'You seem to be scrolling aimlessly. Time for a quick break?';
     try {
-      const chatCompletion = await this.groq.chat.completions.create({
+      const groqClient = await this.getGroqClient(session.userId);
+      const chatCompletion = await groqClient.chat.completions.create({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },

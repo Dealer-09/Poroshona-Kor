@@ -8,12 +8,14 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AiModule } from '../ai/ai.module';
 import { RedisModule } from '../redis/redis.module';
 import { EmbeddingProcessor } from './embedding.processor';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
     PrismaModule,
     AiModule,
     RedisModule,
+    UsersModule,
     BullModule.registerQueue({
       name: 'ai-intervention',
       defaultJobOptions: {

@@ -3,7 +3,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, LayoutDashboard, MessageSquare, LogOut, BarChart } from "lucide-react";
+import { Activity, LayoutDashboard, MessageSquare, LogOut, BarChart, Settings } from "lucide-react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { logout } = useAuth();
@@ -14,6 +14,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Sessions", href: "/dashboard/sessions", icon: Activity },
     { name: "Analytics", href: "/dashboard/analytics", icon: BarChart },
     { name: "AI Coach", href: "/dashboard/coach", icon: MessageSquare },
+    { name: "Settings", href: "/dashboard/settings", icon: Settings },
   ];
 
   return (

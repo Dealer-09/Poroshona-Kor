@@ -142,7 +142,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         activeTabTitle: activeTabTitle,
       } as BehavioralSignal));
 
-      socket.emit("signal:batch", completeSignals);
+      socket?.emit("signal:batch", completeSignals);
     });
   }
 

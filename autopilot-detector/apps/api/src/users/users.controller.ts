@@ -7,6 +7,10 @@ class UpdateSettingsDto {
   @IsOptional()
   @IsString()
   groqApiKey?: string | null;
+
+  @IsOptional()
+  @IsString()
+  geminiApiKey?: string | null;
 }
 
 @Controller('users')
@@ -24,9 +28,9 @@ export class UsersController {
     @Request() req: { user: { id: string } },
     @Body() dto: UpdateSettingsDto,
   ) {
-    return this.usersService.updateGroqApiKey(
+    return this.usersService.updateSettings(
       req.user.id,
-      dto.groqApiKey ?? null,
+      dto,
     );
   }
 }

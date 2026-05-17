@@ -15,7 +15,7 @@ import { UsePipes, ValidationPipe, ParseArrayPipe, OnModuleInit } from '@nestjs/
 import { StartSessionDto, BehavioralSignalDto } from './dto/signals.dto';
 import { AutopilotScoreService } from './autopilot-score.service';
 import { InterventionTimingService } from './intervention-timing.service';
-import { ContentClassificationService } from './content-classification.service';
+import { ContentClassificationService, ContentClassification } from './content-classification.service';
 import { UsersService } from '../users/users.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -28,8 +28,7 @@ interface JwtPayload {
 
 @WebSocketGateway({ cors: true })
 export class SignalsGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit
-{
+  implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit {
   @WebSocketServer()
   server: Server;
 
@@ -42,7 +41,7 @@ export class SignalsGateway
     private classificationService: ContentClassificationService,
     private usersService: UsersService,
     @InjectQueue('embedding') private embeddingQueue: Queue,
-  ) {}
+  ) { }
 
   async onModuleInit() {
     const subscriber = this.redisService.getClient().duplicate();
@@ -73,7 +72,7 @@ export class SignalsGateway
       const decoded = this.jwtService.verify<JwtPayload>(token);
       const clientData = client.data as { user?: JwtPayload };
       clientData.user = decoded;
-      
+
       // Join user-specific room
       client.join(`user:${decoded.sub}`);
     } catch {
@@ -119,7 +118,7 @@ export class SignalsGateway
     await this.prisma.session.update({
       where: { id: payload.sessionId },
       data: {
-        pageTitle: payload.pageTitle,
+        pageTitle: payload.pageTitle, // VSCode: this type exists in the newly generated Prisma client
         pageCategory: payload.pageCategory,
       },
     });
@@ -201,10 +200,20 @@ export class SignalsGateway
       const latestDomain = parsedSignals[parsedSignals.length - 1]?.activeDomain ?? '';
 
       // Run AI classification only when session has an intent and we have a title
-      const classification =
-        sessionIntent && latestTitle
-          ? await this.classificationService.classify(latestTitle, latestDomain, sessionIntent)
-          : undefined;
+      let classification: ContentClassification | undefined = undefined;
+      if (sessionIntent && latestTitle) {
+        const clientData = client.data as { user?: JwtPayload };
+        const userId = clientData.user?.sub;
+        const userGroqKey = userId
+          ? await this.usersService.getRawGroqApiKey(userId)
+          : null;
+        classification = await this.classificationService.classify(
+          latestTitle,
+          latestDomain,
+          sessionIntent,
+          userGroqKey,
+        );
+      }
 
       const autopilotScore = this.scoreService.computeScore(
         parsedSignals,
