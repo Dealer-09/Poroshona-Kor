@@ -38,11 +38,19 @@
   }
   
   .neo-btn-secondary {
-    @apply neo-btn bg-neo-secondary text-black;
+    @apply bg-neo-secondary text-black font-bold border-4 border-black shadow-neo px-6 py-3 cursor-pointer transition-all duration-150;
+  }
+  
+  .neo-btn-secondary:active {
+    @apply translate-x-[4px] translate-y-[4px] shadow-none;
   }
   
   .neo-btn-accent {
-    @apply neo-btn bg-neo-accent text-white;
+    @apply bg-neo-accent text-white font-bold border-4 border-black shadow-neo px-6 py-3 cursor-pointer transition-all duration-150;
+  }
+
+  .neo-btn-accent:active {
+    @apply translate-x-[4px] translate-y-[4px] shadow-none;
   }
   
   .neo-input {

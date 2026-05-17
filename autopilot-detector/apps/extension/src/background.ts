@@ -53,13 +53,13 @@ const connectWebSocket = async () => {
     try {
       console.log("No token found. Fetching dev token from API...");
       // For dev, register/login a test user to get a valid JWT
-      await fetch("http://localhost:3000/auth/register", {
+      await fetch("http://localhost:3001/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: "extension_dev@example.com", password: "password123" })
       }).catch(() => {}); // ignore if already registered
 
-      const loginRes = await fetch("http://localhost:3000/auth/login", {
+      const loginRes = await fetch("http://localhost:3001/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: "extension_dev@example.com", password: "password123" })
@@ -77,7 +77,7 @@ const connectWebSocket = async () => {
   }
 
   // Implement exponential backoff + jitter for reconnection
-  socket = io("ws://localhost:3000", {
+  socket = io("ws://localhost:3001", {
     transports: ["websocket"], // crucial for MV3 Service Workers
     auth: { token },
     reconnection: true,

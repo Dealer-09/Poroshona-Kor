@@ -1,3 +1,5 @@
+import { LiveScoreWidget } from "@/components/LiveScoreWidget";
+
 export default function DashboardPage() {
   return (
     <div>
@@ -8,9 +10,7 @@ export default function DashboardPage() {
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="neo-card p-6 md:col-span-2 min-h-[300px] flex items-center justify-center bg-neo-secondary">
-          <p className="font-bold text-2xl uppercase border-4 border-black px-4 py-2 bg-white transform -rotate-1">
-            [ LIVE SCORE WIDGET PENDING ]
-          </p>
+          <LiveScoreWidget />
         </div>
         
         <div className="neo-card p-6 min-h-[300px] flex flex-col justify-between">
