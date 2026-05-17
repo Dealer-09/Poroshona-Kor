@@ -5,10 +5,15 @@ import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { AiInterventionProcessor } from './ai-intervention.processor';
 import { InterventionService } from './intervention.service';
 import { PrismaModule } from '../prisma/prisma.module';
+import { AiModule } from '../ai/ai.module';
+import { RedisModule } from '../redis/redis.module';
+import { EmbeddingProcessor } from './embedding.processor';
 
 @Module({
   imports: [
     PrismaModule,
+    AiModule,
+    RedisModule,
     BullModule.registerQueue({
       name: 'ai-intervention',
       defaultJobOptions: {
@@ -38,7 +43,7 @@ import { PrismaModule } from '../prisma/prisma.module';
       adapter: BullMQAdapter,
     }),
   ],
-  providers: [InterventionService, AiInterventionProcessor],
+  providers: [InterventionService, AiInterventionProcessor, EmbeddingProcessor],
   exports: [BullModule, InterventionService],
 })
 export class QueuesModule {}

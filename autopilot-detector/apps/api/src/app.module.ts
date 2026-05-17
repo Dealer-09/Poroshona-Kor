@@ -10,6 +10,7 @@ import { QueuesModule } from './queues/queues.module';
 import { BullModule } from '@nestjs/bullmq';
 import { BullBoardModule } from '@bull-board/nestjs';
 import { ExpressAdapter } from '@bull-board/express';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ExpressAdapter } from '@bull-board/express';
     SignalsModule,
     SessionsModule,
     QueuesModule,
+    AiModule,
   ],
 })
 export class AppModule {}

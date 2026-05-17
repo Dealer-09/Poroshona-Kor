@@ -18,7 +18,7 @@ autopilot-detector/
 ├── ml-service/           # Python FastAPI (separate, lives outside monorepo)
 ├── turbo.json
 ├── package.json
-└── pnpm-workspace.yaml
+└── bun.lock
 ```
 
 ---
@@ -26,10 +26,10 @@ autopilot-detector/
 ## Phase 0 — Monorepo Scaffold
 > Goal: One command spins up the entire project. Nothing broken at the start.
 
-### Task 0.1 — Init Turborepo + pnpm workspaces
+### Task 0.1 — Init Turborepo + bun workspaces
 ```
 Prompt to AI:
-"Set up a Turborepo monorepo with pnpm workspaces.
+"Set up a Turborepo monorepo with bun workspaces.
 Workspaces: apps/api, apps/web, apps/extension, packages/shared.
 Root turbo.json with pipelines: build, dev, lint, test.
 Configure dev pipeline with: cache: false, persistent: true, dependsOn: ['^dev']
@@ -37,7 +37,7 @@ Configure dev pipeline with: cache: false, persistent: true, dependsOn: ['^dev']
 Root package.json with scripts: dev (turbo run dev), build, lint.
 Add .gitignore for node_modules, dist, .env, .turbo."
 ```
-**Commit:** `chore: init turborepo monorepo with pnpm workspaces`
+**Commit:** `chore: init turborepo monorepo with bun workspaces`
 
 ---
 
@@ -280,26 +280,25 @@ Store all interventions in chrome.storage.local for dashboard access."
 ```
 Prompt to AI:
 "Enable pgvector in Supabase. Run SQL: CREATE EXTENSION IF NOT EXISTS vector;
-Alter SessionEmbedding table: embedding vector(768).
+SessionEmbedding table already has: embedding vector(512).
 Create EmbeddingService in NestJS:
-- generateEmbedding(session): calls Gemini API (embedding-001 model via @google/generative-ai)
+- generateEmbedding(session): calls Gemini API (gemini-embedding-2 model via @google/genai)
   with a summary of the session signals (avg score, intent, drift pattern).
-  Gemini embedding-001 outputs 768-dimensional vectors — use dimensions: 768.
-  Prefer this over OpenAI to avoid extra billing (free tier covers this volume).
-- storeEmbedding(sessionId, embedding): upsert into SessionEmbedding
+  IMPORTANT: Set config { outputDimensionality: 512 } so it matches our database schema.
+- storeEmbedding(sessionId, embedding): raw SQL insert into SessionEmbedding using gen_random_uuid() and casting.
 - findSimilarSessions(embedding, userId, limit=3): raw SQL with pgvector
   cosine similarity: ORDER BY embedding <=> $1 LIMIT $2
   filtered by userId for personalization.
 Trigger embedding job from BullMQ 'embedding' queue after each session ends."
 ```
-**Commit:** `feat(api): pgvector session embedding with gemini embedding-001`
+**Commit:** `feat(api): pgvector session embedding with gemini-embedding-2`
 
 ---
 
 ### Task 3.2 — LLM intervention generator
 ```
 Prompt to AI:
-"Create InterventionService in NestJS.
+"Update InterventionService in NestJS.
 Method: generateIntervention(sessionId, score, signals): Promise<InterventionEvent>
 Steps:
 1. Get current session from Postgres (intent, duration, appOpened)
@@ -312,11 +311,11 @@ Steps:
    Current autopilot score: {score}/100.
    Past similar sessions led to: {past session outcomes}.
    Generate a contextual nudge.'
-5. Call Claude API (claude-sonnet-4-20250514), max_tokens 150
+5. Call Groq API (using groq-sdk, model: llama-3.1-8b-instant), max_tokens 150
 6. Save Intervention to Postgres, return InterventionEvent
 Enqueue from BullMQ 'ai-intervention' queue."
 ```
-**Commit:** `feat(api): rag-powered llm intervention generator`
+**Commit:** `feat(api): rag-powered llm intervention generator via groq`
 
 ---
 
@@ -492,7 +491,7 @@ Prompt to AI:
 Services:
 - postgres: postgres:16-alpine, port 5432, with pgvector extension init script
 - redis: redis:7-alpine, port 6379
-- (no app containers — apps run with pnpm dev outside Docker)
+- (no app containers — apps run with bun run dev outside Docker)
 Add init SQL script: CREATE EXTENSION IF NOT EXISTS vector;
 Update .env.example with docker-compose connection strings.
 Add Makefile with commands:
@@ -507,14 +506,14 @@ Add Makefile with commands:
 ### Task 5.4 — Turbo dev pipeline
 ```
 Prompt to AI:
-"Configure turbo.json so 'pnpm dev' starts all apps in the right order:
+"Configure turbo.json so 'bun run dev' starts all apps in the right order:
 1. packages/shared (tsc --watch)
 2. apps/api (nest start --watch) — depends on shared
 3. apps/web (next dev) — depends on shared
 4. apps/extension (vite build --watch) — depends on shared
 Set up turbo pipeline with dependsOn correctly.
 Add a root-level dev script in package.json.
-Document in README.md: prerequisites (pnpm, Docker), setup steps,
+Document in README.md: prerequisites (bun, Docker), setup steps,
 how to load the extension in Chrome (chrome://extensions → load unpacked → apps/extension/dist)"
 ```
 **Commit:** `chore: turbo dev pipeline and readme setup`
@@ -732,11 +731,11 @@ Use this every day before starting a new task:
 
 ```
 [ ] Pull latest main
-[ ] pnpm install (in case deps changed)
+[ ] bun install (in case deps changed)
 [ ] make dev-deps (start postgres + redis if not running)
-[ ] pnpm dev (start all apps)
+[ ] bun run dev (start all apps)
 [ ] Check /health endpoint responds
-[ ] Run pnpm test before committing
+[ ] Run bun test before committing
 [ ] Write a clear commit message
 [ ] Push and check CI passes
 ```
@@ -747,7 +746,7 @@ Use this every day before starting a new task:
 
 | Decision | Choice | Why |
 |---|---|---|
-| Monorepo | Turborepo + pnpm | Shared types, single dev command, selective rebuilds |
+| Monorepo | Turborepo + bun | Shared types, single dev command, selective rebuilds |
 | Backend | NestJS | TypeScript-native, WebSocket built-in, modular |
 | Auth | JWT (passport-jwt + argon2) | Custom, lightweight, secure, and self-hosted with no external service lock-in |
 | Queue | BullMQ + Redis | Async AI calls, retry logic, dashboard |
