@@ -1,50 +1,51 @@
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@import "tailwindcss";
+
+@theme {
+  --color-neo-bg: #fdfaf6;
+  --color-neo-surface: #ffffff;
+  --color-neo-primary: #ff3b30;
+  --color-neo-secondary: #ffcc00;
+  --color-neo-accent: #007aff;
+  --color-neo-dark: #1c1c1e;
+  --color-neo-text: #000000;
+  
+  --shadow-neo: 6px 6px 0px 0px rgba(0,0,0,1);
+  --shadow-neo-sm: 4px 4px 0px 0px rgba(0,0,0,1);
+  --shadow-neo-hover: 2px 2px 0px 0px rgba(0,0,0,1);
+  
+  --radius-neo: 0px; /* Sharp corners for true brutalism, or slight 8px */
+  --border-neo: 4px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  body {
+    @apply bg-neo-bg text-neo-text font-sans antialiased selection:bg-neo-primary selection:text-white;
   }
 }
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-.imgDark {
-  display: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+/* Neo Brutalist Base Utilities */
+@layer components {
+  .neo-card {
+    @apply bg-neo-surface border-4 border-black shadow-neo transition-all duration-200;
   }
-
-  .imgLight {
-    display: none;
+  
+  .neo-btn {
+    @apply bg-neo-primary text-white font-bold border-4 border-black shadow-neo px-6 py-3 cursor-pointer transition-all duration-150;
   }
-  .imgDark {
-    display: unset;
+  
+  .neo-btn:active {
+    @apply translate-x-[4px] translate-y-[4px] shadow-none;
+  }
+  
+  .neo-btn-secondary {
+    @apply neo-btn bg-neo-secondary text-black;
+  }
+  
+  .neo-btn-accent {
+    @apply neo-btn bg-neo-accent text-white;
+  }
+  
+  .neo-input {
+    @apply w-full bg-white border-4 border-black shadow-neo-sm px-4 py-3 font-medium outline-none focus:ring-4 focus:ring-neo-primary/30 transition-all;
   }
 }
