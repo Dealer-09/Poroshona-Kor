@@ -51,6 +51,8 @@ export class SignalsGateway
       const decoded = this.jwtService.verify<JwtPayload>(token);
       const clientData = client.data as { user?: JwtPayload };
       clientData.user = decoded;
+      
+      client.join(`user:${decoded.sub}`);
     } catch {
       client.disconnect();
     }
@@ -80,7 +82,7 @@ export class SignalsGateway
     });
 
     console.log(`🚀 New Session Started! Intent: ${payload.declaredIntent}`);
-    client.emit('session:created', { sessionId: session.id });
+    this.server.to(`user:${userId}`).emit('session:created', { sessionId: session.id });
   }
 
   @SubscribeMessage('session:end')
@@ -98,7 +100,7 @@ export class SignalsGateway
       data: { endedAt: new Date() },
     });
 
-    client.emit('session:ended', { sessionId: payload.sessionId });
+    this.server.to(`user:${userId}`).emit('session:ended', { sessionId: payload.sessionId });
   }
 
   @SubscribeMessage('signal:batch')
@@ -158,7 +160,13 @@ export class SignalsGateway
         },
       });
 
-      client.emit('score:update', autopilotScore);
+      const clientData = client.data as { user?: JwtPayload };
+      const userId = clientData.user?.sub;
+      if (userId) {
+        this.server.to(`user:${userId}`).emit('score:update', autopilotScore);
+      } else {
+        client.emit('score:update', autopilotScore);
+      }
       console.log(
         '📈 LIVE SCORE COMPUTED:',
         JSON.stringify(autopilotScore, null, 2),

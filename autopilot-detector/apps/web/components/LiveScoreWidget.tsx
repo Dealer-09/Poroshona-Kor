@@ -39,14 +39,14 @@ export function LiveScoreWidget() {
   }, [socket]);
 
   // Determine color based on score thresholds
-  let scoreColor = "text-green-500";
-  let strokeColor = "#22c55e"; // green
+  let scoreColor = "text-green-400";
+  let strokeColor = "#4ade80"; // green-400
   if (data.score > 70) {
-    scoreColor = "text-neo-primary";
-    strokeColor = "#ff3b30"; // cyberpunk red
+    scoreColor = "text-red-500";
+    strokeColor = "#ef4444"; // red-500
   } else if (data.score > 40) {
-    scoreColor = "text-neo-secondary";
-    strokeColor = "#ffcc00"; // caution yellow
+    scoreColor = "text-yellow-400";
+    strokeColor = "#facc15"; // yellow-400
   }
 
 
@@ -60,7 +60,7 @@ export function LiveScoreWidget() {
           <circle cx="154" cy="154" r="140" fill="black" />
           
           {/* Main Background Circle */}
-          <circle cx="150" cy="150" r="140" fill="#facc15" stroke="black" strokeWidth="8" />
+          <circle cx="150" cy="150" r="140" fill="white" stroke="black" strokeWidth="8" />
 
           {/* Dashed outer ring - calculated to fit perfectly (Circumference ~879.6, divided by 44 dashes = 19.99) */}
           <circle 
@@ -109,12 +109,12 @@ export function LiveScoreWidget() {
         </svg>
 
         <div className="absolute flex flex-col items-center justify-center">
-          <span className="text-xl font-black uppercase tracking-widest">Score</span>
+          <span className="text-xl font-black uppercase tracking-widest mt-4">Score</span>
           <motion.span 
             key={data.score}
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className={`text-6xl font-black ${scoreColor} drop-shadow-[2px_2px_0_rgba(0,0,0,1)]`}
+            className={`text-[80px] leading-none font-black ${scoreColor} drop-shadow-[4px_4px_0_rgba(0,0,0,1)]`}
           >
             {Math.round(data.score)}
           </motion.span>

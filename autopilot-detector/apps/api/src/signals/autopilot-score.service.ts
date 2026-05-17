@@ -26,12 +26,13 @@ export class AutopilotScoreService {
     let timeWindowMinutes = (lastTime - firstTime) / 60000;
     if (timeWindowMinutes <= 0) timeWindowMinutes = 0.1; // fallback to avoid division by zero
 
-    // 3. Tab Switch Rate
-    const totalTabSwitches = signals.reduce(
-      (acc, s) => acc + s.tabSwitchCount,
-      0,
-    );
-    const tabSwitchRate = totalTabSwitches / timeWindowMinutes;
+    // 3. Focus Fragmentation (Tab Switch Rate)
+    // tabSwitchCount is an absolute counter from the extension.
+    // Switches in this window is (last - first)
+    const switchesInWindow = Math.max(0, signals[signals.length - 1].tabSwitchCount - signals[0].tabSwitchCount);
+    const tabSwitchRatePerMin = switchesInWindow / timeWindowMinutes;
+    // Normalize to 0-1 (assume 10 switches per min is 100% fragmented)
+    const focusFragmentation = Math.min(tabSwitchRatePerMin / 10, 1.0);
 
     // 4. Passive Ratio
     const totalPassive = signals.reduce((acc, s) => acc + s.passiveTime, 0);
@@ -41,15 +42,14 @@ export class AutopilotScoreService {
         ? 0
         : totalPassive / (totalPassive + totalActive);
 
-    // 5. Cognitive Drift
-    const cognitiveDrift = tabSwitchRate * 0.4 + passiveRatio * 0.6;
+    // 5. Cognitive Drift (0-1)
+    const cognitiveDrift = focusFragmentation * 0.4 + passiveRatio * 0.6;
 
-    // 6. Doomscroll Probability
-    // Capping tab switch rate impact to prevent overflow
+    // 6. Doomscroll Probability & Overall Score
+    // Watching YouTube = passiveRatio is ~1.0, so score hits ~75+ easily.
+    // Doomscrolling = fast scroll + high passive ratio, hits 90+
     const doomscrollProbability = Math.min(
-      scrollVelocityNormalized * 0.3 +
-        passiveRatio * 0.4 +
-        (Math.min(tabSwitchRate, 10) / 10) * 0.3,
+      (passiveRatio * 0.75) + (focusFragmentation * 0.25) + (scrollVelocityNormalized * 0.3),
       1.0,
     );
 
@@ -58,7 +58,7 @@ export class AutopilotScoreService {
 
     return {
       score,
-      focusFragmentation: tabSwitchRate,
+      focusFragmentation,
       passiveRatio,
       cognitiveDrift,
       doomscrollProbability,

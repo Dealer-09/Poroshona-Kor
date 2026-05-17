@@ -7,6 +7,7 @@ import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { QueuesModule } from './queues/queues.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { BullModule } from '@nestjs/bullmq';
 import { BullBoardModule } from '@bull-board/nestjs';
 import { ExpressAdapter } from '@bull-board/express';
@@ -37,6 +38,7 @@ import { ExpressAdapter } from '@bull-board/express';
     SignalsModule,
     SessionsModule,
     QueuesModule,
+    AnalyticsModule,
   ],
 })
 export class AppModule {}
