@@ -28,8 +28,9 @@ export default function LoginPage() {
       }
 
       login(data.access_token);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "An unknown error occurred";
+      setError(errorMsg);
     }
   };
 

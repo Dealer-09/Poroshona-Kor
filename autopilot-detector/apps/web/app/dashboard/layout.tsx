@@ -3,7 +3,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, LayoutDashboard, MessageSquare, LogOut, Settings } from "lucide-react";
+import { Activity, LayoutDashboard, MessageSquare, LogOut } from "lucide-react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { logout } = useAuth();

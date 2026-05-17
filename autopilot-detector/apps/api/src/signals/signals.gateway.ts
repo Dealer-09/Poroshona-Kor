@@ -37,10 +37,11 @@ export class SignalsGateway
     @InjectQueue('ai-intervention') private aiQueue: Queue,
   ) {}
 
-  async handleConnection(client: Socket) {
+  handleConnection(client: Socket) {
     try {
+      const auth = client.handshake.auth as Record<string, unknown> | undefined;
       const token =
-        client.handshake.auth.token ||
+        (auth?.token as string | undefined) ||
         client.handshake.headers.authorization?.split(' ')[1];
       if (!token) {
         client.disconnect();
@@ -48,13 +49,14 @@ export class SignalsGateway
       }
 
       const decoded = this.jwtService.verify<JwtPayload>(token);
-      client.data.user = decoded;
+      const clientData = client.data as { user?: JwtPayload };
+      clientData.user = decoded;
     } catch {
       client.disconnect();
     }
   }
 
-  handleDisconnect(_client: Socket) {
+  handleDisconnect() {
     // cleanup on disconnect
   }
 
@@ -64,7 +66,8 @@ export class SignalsGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: StartSessionDto,
   ) {
-    const user = client.data.user as JwtPayload | undefined;
+    const clientData = client.data as { user?: JwtPayload };
+    const user = clientData.user;
     const userId = user?.sub;
     if (!userId) return;
 
@@ -85,7 +88,8 @@ export class SignalsGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { sessionId: string },
   ) {
-    const user = client.data.user as JwtPayload | undefined;
+    const clientData = client.data as { user?: JwtPayload };
+    const user = clientData.user;
     const userId = user?.sub;
     if (!userId) return;
 
@@ -136,7 +140,9 @@ export class SignalsGateway
     // Calculate score on EVERY batch for instant testing!
     if (batchCount % 1 === 0) {
       const rawSignals = await redis.lrange(key, 0, -1);
-      const parsedSignals = rawSignals.map((s) => JSON.parse(s));
+      const parsedSignals = rawSignals.map(
+        (s) => JSON.parse(s) as BehavioralSignalDto,
+      );
 
       const autopilotScore = this.scoreService.computeScore(parsedSignals);
 
@@ -153,7 +159,10 @@ export class SignalsGateway
       });
 
       client.emit('score:update', autopilotScore);
-      console.log('📈 LIVE SCORE COMPUTED:', JSON.stringify(autopilotScore, null, 2));
+      console.log(
+        '📈 LIVE SCORE COMPUTED:',
+        JSON.stringify(autopilotScore, null, 2),
+      );
 
       // Trigger AI Intervention job if score breaches the NUDGE threshold
       if (autopilotScore.score > 60) {

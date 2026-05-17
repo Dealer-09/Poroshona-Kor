@@ -1,6 +1,7 @@
 {
   "name": "autopilot-detector",
   "private": true,
+  "packageManager": "npm@10.9.8",
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
@@ -21,7 +22,6 @@
   "engines": {
     "node": ">=18"
   },
-  "packageManager": "npm@10.9.7",
   "workspaces": [
     "apps/*",
     "packages/*"

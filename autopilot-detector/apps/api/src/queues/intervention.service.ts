@@ -11,6 +11,7 @@ export class InterventionService {
   async generateIntervention(
     sessionId: string,
     score: number,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     signals: BehavioralSignal[],
   ) {
     this.logger.log(

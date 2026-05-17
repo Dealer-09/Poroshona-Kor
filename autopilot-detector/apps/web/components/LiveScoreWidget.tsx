@@ -49,9 +49,7 @@ export function LiveScoreWidget() {
     strokeColor = "#ffcc00"; // caution yellow
   }
 
-  // Calculate SVG stroke dasharray logic
-  const circumference = 2 * Math.PI * 120; // r=120
-  const strokeDashoffset = circumference - (data.score / 100) * circumference;
+
 
   return (
     <div className="flex flex-col md:flex-row items-center w-full gap-8">
