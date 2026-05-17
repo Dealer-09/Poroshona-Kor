@@ -11,7 +11,7 @@
 autopilot-detector/
 ├── apps/
 │   ├── api/              # NestJS backend
-│   ├── web/              # Next.js 14 dashboard
+│   ├── web/              # Next.js 15 dashboard
 │   └── extension/        # Chrome Extension MV3
 ├── packages/
 │   └── shared/           # Shared TypeScript types & constants
@@ -32,6 +32,8 @@ Prompt to AI:
 "Set up a Turborepo monorepo with pnpm workspaces.
 Workspaces: apps/api, apps/web, apps/extension, packages/shared.
 Root turbo.json with pipelines: build, dev, lint, test.
+Configure dev pipeline with: cache: false, persistent: true, dependsOn: ['^dev']
+  so only changed packages rebuild, not the entire monorepo on every save.
 Root package.json with scripts: dev (turbo run dev), build, lint.
 Add .gitignore for node_modules, dist, .env, .turbo."
 ```
@@ -77,13 +79,15 @@ Add .eslintrc and .prettierrc at repo root."
 ```
 Prompt to AI:
 "Scaffold a NestJS app in apps/api using @nestjs/cli.
-Modules to create: AppModule, AuthModule, SignalsModule, SessionsModule.
-Install: @nestjs/jwt, @nestjs/passport, passport-jwt, bcrypt,
-@nestjs/websockets, @nestjs/platform-socket.io, socket.io.
-Add .env.example with: DATABASE_URL, JWT_SECRET, REDIS_URL, PORT.
+Modules to create: AppModule, SignalsModule, SessionsModule.
+Auth: use Clerk (@clerk/clerk-sdk-node) — NOT @nestjs/jwt or passport.
+  Add ClerkAuthGuard that validates the Clerk session token from the
+  Authorization header on all protected routes.
+Install: @clerk/clerk-sdk-node, @nestjs/websockets, @nestjs/platform-socket.io, socket.io.
+Add .env.example with: DATABASE_URL, CLERK_SECRET_KEY, REDIS_URL, PORT.
 Configure ConfigModule globally with validation."
 ```
-**Commit:** `feat(api): scaffold nestjs with modules and deps`
+**Commit:** `feat(api): scaffold nestjs with clerk auth and modules`
 
 ---
 
@@ -99,25 +103,17 @@ Schema models:
   passiveRatio Float, cognitiveDrift Float, doomscrollProbability Float,
   timestamp DateTime }
 - Intervention { id, sessionId, type, message, triggeredAt DateTime }
-- SessionEmbedding { id, sessionId, embedding Unsupported('vector(1536)') }
+- SessionEmbedding { id, sessionId, embedding Unsupported('vector(512)') }
 Run: prisma migrate dev."
 ```
 **Commit:** `feat(api): add prisma schema with supabase postgres`
 
 ---
 
-### Task 1.3 — JWT Auth (register + login)
-```
-Prompt to AI:
-"Implement JWT auth in NestJS AuthModule.
-POST /auth/register — hash password with bcrypt, create user, return JWT.
-POST /auth/login — validate credentials, return JWT.
-JwtAuthGuard using passport-jwt strategy.
-JwtPayload type: { sub: userId, email }.
-Protect all future routes with JwtAuthGuard by default.
-Use @nestjs/config for JWT_SECRET."
-```
-**Commit:** `feat(api): jwt auth with register and login`
+### ~~Task 1.3 — JWT Auth (register + login)~~
+> **Removed.** Clerk handles auth entirely via `@clerk/clerk-sdk-node`.
+> No custom register/login endpoints needed. No bcrypt, no JWT_SECRET, no passport strategy.
+> ClerkAuthGuard (added in Task 1.1) protects all routes automatically.
 
 ---
 
@@ -128,12 +124,14 @@ Prompt to AI:
 Events to handle:
 - 'signal:batch' — receives BehavioralSignal[], validates with class-validator,
   stores in Redis with key session:{sessionId}:signals as a rolling buffer (last 100).
+  IMPORTANT: before pushing, check current buffer length — if >= 100, drop the
+  oldest 20 entries first (LTRIM) to prevent unbounded growth under heavy scroll.
 - 'session:start' — creates Session record in Postgres, emits 'session:created'.
 - 'session:end' — closes session, emits 'session:ended'.
-Authenticate WebSocket connections using JWT from handshake auth header.
+Authenticate WebSocket connections using Clerk session token from handshake auth header.
 Import SignalsModule types from packages/shared."
 ```
-**Commit:** `feat(api): websocket gateway for signal ingestion`
+**Commit:** `feat(api): websocket gateway with signal ingestion and backpressure guard`
 
 ---
 
@@ -202,11 +200,15 @@ Prompt to AI:
 - passiveTime: time with no click/keydown/scroll (idle detection)
 - activeTime: time with interaction events
 - clickRate: click count in last 10 seconds
+IMPORTANT: all scroll and touch event listeners MUST use { passive: true } option:
+  window.addEventListener('scroll', handler, { passive: true })
+  window.addEventListener('touchmove', handler, { passive: true })
+  This allows Chrome to optimize scroll rendering without waiting for the handler.
 Batch signals into arrays of 10, send to background script via chrome.runtime.sendMessage.
 Use requestAnimationFrame for scroll tracking, not setInterval.
 Clean up all event listeners on page unload."
 ```
-**Commit:** `feat(extension): content script signal tracking`
+**Commit:** `feat(extension): content script signal tracking with passive listeners`
 
 ---
 
@@ -220,10 +222,12 @@ Tab tracking:
 - Detect rapid tab switching: >5 switches in 60 seconds
 WebSocket connection:
 - Connect to NestJS WebSocket on extension install/startup
-- Read JWT from chrome.storage.local
+- Read Clerk session token from chrome.storage.local
 - Receive signal batches from content script via chrome.runtime.onMessage
 - Emit 'signal:batch' to server with merged signals (content + tab data)
-- Reconnect on disconnect with exponential backoff (max 30s)"
+- Reconnect on disconnect with exponential backoff (max 30s) + ±20% random jitter
+  to prevent thundering herd if server restarts: delay = Math.min(base * 2^attempt, 30000)
+  jittered: delay * (0.8 + Math.random() * 0.4)"
 ```
 **Commit:** `feat(extension): background worker with tab tracking and websocket`
 
@@ -269,17 +273,19 @@ Store all interventions in chrome.storage.local for dashboard access."
 ```
 Prompt to AI:
 "Enable pgvector in Supabase. Run SQL: CREATE EXTENSION IF NOT EXISTS vector;
-Alter SessionEmbedding table: embedding vector(1536).
+Alter SessionEmbedding table: embedding vector(768).
 Create EmbeddingService in NestJS:
-- generateEmbedding(session): calls OpenAI text-embedding-3-small API
-  with a summary of the session signals (avg score, intent, drift pattern)
+- generateEmbedding(session): calls Gemini API (embedding-001 model via @google/generative-ai)
+  with a summary of the session signals (avg score, intent, drift pattern).
+  Gemini embedding-001 outputs 768-dimensional vectors — use dimensions: 768.
+  Prefer this over OpenAI to avoid extra billing (free tier covers this volume).
 - storeEmbedding(sessionId, embedding): upsert into SessionEmbedding
 - findSimilarSessions(embedding, userId, limit=3): raw SQL with pgvector
   cosine similarity: ORDER BY embedding <=> $1 LIMIT $2
   filtered by userId for personalization.
 Trigger embedding job from BullMQ 'embedding' queue after each session ends."
 ```
-**Commit:** `feat(api): pgvector session embedding and similarity search`
+**Commit:** `feat(api): pgvector session embedding with gemini embedding-001`
 
 ---
 
@@ -328,19 +334,23 @@ Emit 'intervention:trigger' to client via WebSocket after generating message."
 ## Phase 4 — Next.js Dashboard
 > Goal: A reflection dashboard showing live score, drift patterns, and AI chat.
 
-### Task 4.1 — Next.js 14 scaffold + auth
+### Task 4.1 — Next.js 15 scaffold + Clerk auth
 ```
 Prompt to AI:
-"Scaffold Next.js 14 app in apps/web with App Router.
-Install: next-auth v5, @supabase/supabase-js, tailwindcss, framer-motion,
+"Scaffold Next.js 15 app in apps/web with App Router.
+Install: @clerk/nextjs, @supabase/supabase-js, tailwindcss, framer-motion,
 recharts, lucide-react, socket.io-client.
-Configure next-auth with credentials provider (calls NestJS /auth/login).
-Middleware to protect all routes except /login.
+Configure Clerk auth:
+  - Add ClerkProvider to root layout.tsx
+  - Add middleware.ts using clerkMiddleware() to protect all routes except /sign-in
+  - Use currentUser() or auth() from @clerk/nextjs/server in server components
+  - Pass Clerk session token to NestJS API calls via getToken()
+  Do NOT use next-auth — Clerk replaces it entirely.
 Tailwind config with custom colors matching the product (dark theme preferred).
 Layout.tsx with sidebar navigation:
   Dashboard | Sessions | Interventions | AI Reflection"
 ```
-**Commit:** `feat(web): scaffold next.js 14 with auth and layout`
+**Commit:** `feat(web): scaffold next.js 15 with clerk auth and layout`
 
 ---
 
@@ -533,12 +543,14 @@ FastAPI app with:
 - GET /health
 - POST /train — triggers model retraining (protected by API key)
 Dependencies in requirements.txt:
-  fastapi, uvicorn, scikit-learn, numpy, pandas, joblib, pydantic
+  fastapi, uvicorn[standard], uvloop, httptools, scikit-learn, numpy, pandas, joblib, pydantic
+Add uvloop and httptools for maximum Uvicorn throughput (drop-in, no code changes needed).
 BehavioralSignalBatch: list of { scrollVelocity, tabSwitchRate,
   passiveRatio, clickRate, timestamp } (last 60 signals)
-Run: uvicorn main:app --reload"
+Dev: uvicorn main:app --reload
+Production: uvicorn main:app --workers 4 --loop uvloop"
 ```
-**Commit:** `feat(ml): fastapi scaffold with predict endpoint`
+**Commit:** `feat(ml): fastapi scaffold with uvloop and multi-worker support`
 
 ---
 
@@ -568,12 +580,16 @@ Features: scrollVelocity_mean, scrollVelocity_std, tabSwitchRate,
   passiveRatio, clickRate_mean, sessionDuration.
 Target: label (binary).
 Train XGBoost classifier with cross-validation (5-fold).
+IMPORTANT: set tree_method='hist' and device='cuda' — this uses GPU if available
+  (falls back to CPU automatically if not). 'hist' is 3–10x faster than default
+  'exact' method regardless of GPU.
+  XGBClassifier(tree_method='hist', device='cuda', n_estimators=200, max_depth=6)
 Print: accuracy, precision, recall, F1, AUC-ROC.
 Save model with joblib to models/autopilot_classifier.joblib.
 Save feature names and threshold to models/config.json.
 Add confusion matrix output."
 ```
-**Commit:** `feat(ml): xgboost classifier training script`
+**Commit:** `feat(ml): xgboost classifier with hist tree method and gpu support`
 
 ---
 
@@ -636,16 +652,20 @@ Use a separate test DB (TEST_DATABASE_URL in .env.test)."
 ```
 Prompt to AI:
 "Write a Playwright E2E test simulating the full autopilot detection flow.
-Mock the Chrome Extension APIs (use a test page that sends signals directly).
+Use playwright-crx (not manual Chrome Extension API mocks) — it loads the actual
+  built extension into a real Chrome instance, giving accurate E2E coverage
+  without fragile mock implementations.
+Install: playwright-crx as a dev dependency.
 Test:
-1. User opens test page, sets intent to 'Study'
-2. Page simulates doomscrolling signals for 60 seconds
-3. Assert intervention notification appears in the dashboard
-4. Assert intervention saved in DB
-5. Assert pgvector embedding created for the session
+1. Load extension from apps/extension/dist via playwright-crx
+2. User opens test page, sets intent to 'Study' via the real extension popup
+3. Page simulates doomscrolling signals for 60 seconds
+4. Assert intervention notification appears in the dashboard
+5. Assert intervention saved in DB
+6. Assert pgvector embedding created for the session
 Run with: playwright test (add to turbo pipeline)."
 ```
-**Commit:** `test: e2e test for full autopilot detection flow`
+**Commit:** `test: e2e test using playwright-crx for real extension loading`
 
 ---
 
@@ -722,16 +742,18 @@ Use this every day before starting a new task:
 
 | Decision | Choice | Why |
 |---|---|---|
-| Monorepo | Turborepo + pnpm | Shared types, single dev command |
+| Monorepo | Turborepo + pnpm | Shared types, single dev command, selective rebuilds |
 | Backend | NestJS | TypeScript-native, WebSocket built-in, modular |
+| Auth | Clerk (@clerk/clerk-sdk-node + @clerk/nextjs) | No JWT boilerplate, production-grade out of the box |
 | Queue | BullMQ + Redis | Async AI calls, retry logic, dashboard |
 | Database | Supabase (Postgres) | pgvector built-in, auth, realtime, free tier |
-| Vector DB | pgvector | Free, inside Supabase, no extra infra |
+| Vector DB | pgvector (768d) | Gemini-compatible dims, free, inside Supabase |
+| Embedding Model | Gemini embedding-001 | Free tier, 768d, no OpenAI billing |
 | Vector DB (scale) | Pinecone | Only if pgvector too slow at millions of users |
 | LLM | Claude via Anthropic API | RAG interventions, reflection chat |
 | ML (v1) | Heuristic formula | No training data needed on day 1 |
-| ML (v2) | XGBoost / FastAPI | Replace heuristic once 50+ sessions exist |
-| Frontend | Next.js 14 App Router | Server components, streaming, best DX |
+| ML (v2) | XGBoost (hist + CUDA) / FastAPI | Replace heuristic once 50+ sessions exist; GPU-accelerated |
+| Frontend | Next.js 15 App Router | Server components, streaming, best DX |
 | Extension | Chrome MV3 | Required for all new Chrome extensions |
 | Dev tooling | Husky + ESLint + Prettier | Code quality without friction |
 | Deployment | Railway (API) + Vercel (web) | Simple, fast, free tiers available |
@@ -744,17 +766,18 @@ Use this every day before starting a new task:
 ```
 DATABASE_URL=postgresql://...
 TEST_DATABASE_URL=postgresql://...
-JWT_SECRET=your-secret-here
+CLERK_SECRET_KEY=sk_live_...
 REDIS_URL=redis://localhost:6379
 ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=...
 ML_SERVICE_URL=http://localhost:8000
 PORT=3001
 ```
 
 ### apps/web (.env.local)
 ```
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your-secret-here
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
+CLERK_SECRET_KEY=sk_live_...
 NEXT_PUBLIC_API_URL=http://localhost:3001
 NEXT_PUBLIC_WS_URL=ws://localhost:3001
 ```
