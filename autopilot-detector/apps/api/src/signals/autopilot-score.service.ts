@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { BehavioralSignal, AutopilotScore } from '@autopilot/shared';
+import { BehavioralSignal, AutopilotScore, AppIntent } from '@autopilot/shared';
+import { ContentClassification } from './content-classification.service';
 
 @Injectable()
 export class AutopilotScoreService {
   private readonly MAX_SCROLL_VELOCITY = 5000;
 
-  computeScore(signals: BehavioralSignal[]): AutopilotScore {
+  computeScore(
+    signals: BehavioralSignal[],
+    intent?: AppIntent,
+    classification?: ContentClassification,
+  ): AutopilotScore {
     if (!signals || signals.length === 0) {
       return this.getDefaultScore();
     }
@@ -37,23 +42,157 @@ export class AutopilotScoreService {
     // 4. Passive Ratio
     const totalPassive = signals.reduce((acc, s) => acc + s.passiveTime, 0);
     const totalActive = signals.reduce((acc, s) => acc + s.activeTime, 0);
-    const passiveRatio =
+    let passiveRatio =
       totalPassive + totalActive === 0
         ? 0
         : totalPassive / (totalPassive + totalActive);
 
+    // Find the most frequent activeDomain in the signals window
+    const domainCounts: Record<string, number> = {};
+    for (const sig of signals) {
+      const domain = sig.activeDomain || 'unknown';
+      domainCounts[domain] = (domainCounts[domain] || 0) + 1;
+    }
+    let dominantDomain = 'unknown';
+    let maxCount = 0;
+    for (const [domain, count] of Object.entries(domainCounts)) {
+      if (count > maxCount) {
+        maxCount = count;
+        dominantDomain = domain;
+      }
+    }
+    dominantDomain = dominantDomain.toLowerCase();
+
+    const isSocial =
+      dominantDomain.includes('twitter.com') ||
+      dominantDomain.includes('x.com') ||
+      dominantDomain.includes('facebook.com') ||
+      dominantDomain.includes('instagram.com') ||
+      dominantDomain.includes('reddit.com') ||
+      dominantDomain.includes('tiktok.com');
+
+    const isEntertainment =
+      dominantDomain.includes('youtube.com') ||
+      dominantDomain.includes('netflix.com') ||
+      dominantDomain.includes('twitch.tv') ||
+      dominantDomain.includes('disneyplus.com') ||
+      dominantDomain.includes('hulu.com');
+
+    const isStudyDomain =
+      dominantDomain.includes('wikipedia.org') ||
+      dominantDomain.includes('github.com') ||
+      dominantDomain.includes('stackoverflow.com') ||
+      dominantDomain.includes('docs.') ||
+      dominantDomain.includes('medium.com') ||
+      dominantDomain.includes('dev.to') ||
+      dominantDomain.includes('coursera.org') ||
+      dominantDomain.includes('edx.org') ||
+      dominantDomain.includes('khanacademy.org');
+
+    let doomscrollProbability = 0;
+
+    // Apply Contextual Intent Penalty Matrix
+    if (intent === AppIntent.STUDY) {
+      const contentType = classification?.contentType;
+      const isRelevant = classification?.isRelevantToIntent ?? false;
+
+      if (contentType === 'lecture' || contentType === 'tutorial') {
+        // Watching a relevant educational video — passive time is fully forgiven.
+        // But fast scroll (e.g. skipping through comments) still counts.
+        passiveRatio = passiveRatio * 0.05;
+        doomscrollProbability =
+          (passiveRatio * 0.3) +
+          (focusFragmentation * 0.4) +
+          (scrollVelocityNormalized * 0.5);
+      } else if (contentType === 'reading') {
+        // Reading domain (Wikipedia, docs, GitHub). Slow scroll = engaged = good.
+        // Zero scroll over a long passive window = possibly zoned out = mild penalty.
+        const isZonedOut = scrollVelocityNormalized < 0.02 && passiveRatio > 0.8;
+        if (isZonedOut) {
+          // User is staring at a page without reading — mild increase
+          doomscrollProbability =
+            (passiveRatio * 0.4) +
+            (focusFragmentation * 0.3) +
+            0.1; // flat bump for idle staring
+        } else {
+          // Actively reading / slow-scrolling — fully forgiven
+          passiveRatio = passiveRatio * 0.2;
+          doomscrollProbability =
+            (passiveRatio * 0.3) +
+            (focusFragmentation * 0.3) +
+            (scrollVelocityNormalized * 0.2);
+        }
+      } else if (contentType === 'gaming' || contentType === 'entertainment') {
+        // Explicitly off-task content during STUDY — heavy penalty
+        doomscrollProbability =
+          (passiveRatio * 0.75) +
+          (focusFragmentation * 0.25) +
+          (scrollVelocityNormalized * 0.3);
+        doomscrollProbability = (doomscrollProbability * 1.6) + 0.25;
+      } else if (contentType === 'social') {
+        // Social feed during study — heavy penalty
+        doomscrollProbability =
+          (passiveRatio * 0.75) +
+          (focusFragmentation * 0.25) +
+          (scrollVelocityNormalized * 0.3);
+        doomscrollProbability = (doomscrollProbability * 1.5) + 0.2;
+      } else {
+        // Unknown content type — fall back to domain-based rules
+        if (isStudyDomain) {
+          passiveRatio = passiveRatio * 0.4;
+        }
+        doomscrollProbability =
+          (passiveRatio * 0.75) +
+          (focusFragmentation * 0.25) +
+          (scrollVelocityNormalized * 0.3);
+        // If domain looks like entertainment but classification unknown, still penalize
+        if ((isSocial || isEntertainment) && !isRelevant) {
+          doomscrollProbability = (doomscrollProbability * 1.5) + 0.2;
+        }
+      }
+    } else if (intent === AppIntent.TUTORIAL) {
+      // Watching videos is okay
+      if (isEntertainment) {
+        passiveRatio = passiveRatio * 0.2;
+      }
+      
+      doomscrollProbability = (passiveRatio * 0.75) + (focusFragmentation * 0.25) + (scrollVelocityNormalized * 0.3);
+
+      // Penalize social media
+      if (isSocial) {
+        doomscrollProbability = doomscrollProbability * 1.3;
+      }
+    } else if (intent === AppIntent.ENTERTAINMENT || intent === AppIntent.RELAXATION) {
+      // Staring passively is fine for relaxing/entertainment
+      passiveRatio = passiveRatio * 0.1;
+
+      // But catch the high-anxiety doomscroll / task-switch loop
+      if (scrollVelocityNormalized > 0.4 && focusFragmentation > 0.3) {
+        doomscrollProbability = (focusFragmentation * 0.6 + scrollVelocityNormalized * 0.6) * 1.4;
+      } else {
+        doomscrollProbability = (passiveRatio * 0.5) + (focusFragmentation * 0.25) + (scrollVelocityNormalized * 0.3);
+      }
+    } else if (intent === AppIntent.AVOIDING_WORK) {
+      doomscrollProbability = (passiveRatio * 0.75) + (focusFragmentation * 0.25) + (scrollVelocityNormalized * 0.3);
+      
+      // User admitted avoiding work. Flat multiplier + extra if on social/entertainment
+      if (isSocial || isEntertainment) {
+        doomscrollProbability = (doomscrollProbability * 1.3) + 0.2;
+      } else {
+        doomscrollProbability = doomscrollProbability * 1.2;
+      }
+    } else {
+      // Default fallback (no intent or unknown)
+      doomscrollProbability = (passiveRatio * 0.75) + (focusFragmentation * 0.25) + (scrollVelocityNormalized * 0.3);
+    }
+
+    // Keep within bounds [0, 1]
+    doomscrollProbability = Math.max(0, Math.min(doomscrollProbability, 1.0));
+
     // 5. Cognitive Drift (0-1)
     const cognitiveDrift = focusFragmentation * 0.4 + passiveRatio * 0.6;
 
-    // 6. Doomscroll Probability & Overall Score
-    // Watching YouTube = passiveRatio is ~1.0, so score hits ~75+ easily.
-    // Doomscrolling = fast scroll + high passive ratio, hits 90+
-    const doomscrollProbability = Math.min(
-      (passiveRatio * 0.75) + (focusFragmentation * 0.25) + (scrollVelocityNormalized * 0.3),
-      1.0,
-    );
-
-    // 7. Score (0-100)
+    // 6. Score (0-100)
     const score = Math.round(doomscrollProbability * 100);
 
     return {

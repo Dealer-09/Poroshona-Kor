@@ -117,14 +117,33 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "SIGNAL_BATCH" && currentSessionId && socket?.connected) {
     const rawSignals: Partial<BehavioralSignal>[] = message.payload;
 
-    const completeSignals: BehavioralSignal[] = rawSignals.map((sig) => ({
-      ...sig,
-      sessionId: currentSessionId!,
-      userId: "dev_user_1",
-      tabSwitchCount: tabSwitchCount,
-    } as BehavioralSignal));
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const activeTab = tabs[0];
+      let activeDomain = "unknown";
+      let activeTabTitle = "";
+      if (activeTab?.url) {
+        try {
+          const urlObj = new URL(activeTab.url);
+          activeDomain = urlObj.hostname;
+        } catch (e) {
+          console.error("Failed to parse tab URL:", e);
+        }
+      }
+      if (activeTab?.title) {
+        activeTabTitle = activeTab.title;
+      }
 
-    socket.emit("signal:batch", completeSignals);
+      const completeSignals: BehavioralSignal[] = rawSignals.map((sig) => ({
+        ...sig,
+        sessionId: currentSessionId!,
+        userId: "dev_user_1",
+        tabSwitchCount: tabSwitchCount,
+        activeDomain: activeDomain,
+        activeTabTitle: activeTabTitle,
+      } as BehavioralSignal));
+
+      socket.emit("signal:batch", completeSignals);
+    });
   }
 
   // Handle Session Metadata from Content Script

@@ -6,9 +6,10 @@ import { RedisModule } from '../redis/redis.module';
 import { AutopilotScoreService } from './autopilot-score.service';
 import { QueuesModule } from '../queues/queues.module';
 import { InterventionTimingService } from './intervention-timing.service';
+import { ContentClassificationService } from './content-classification.service';
 
 @Module({
   imports: [AuthModule, PrismaModule, RedisModule, QueuesModule],
-  providers: [SignalsGateway, AutopilotScoreService, InterventionTimingService],
+  providers: [SignalsGateway, AutopilotScoreService, InterventionTimingService, ContentClassificationService],
 })
 export class SignalsModule {}

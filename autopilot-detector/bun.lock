@@ -4,6 +4,10 @@
   "workspaces": {
     "": {
       "name": "autopilot-detector",
+      "dependencies": {
+        "@google/genai": "^2.3.0",
+        "groq-sdk": "^1.2.0",
+      },
       "devDependencies": {
         "@nestjs/cli": "^11.0.21",
         "@nestjs/schematics": "^11.1.0",

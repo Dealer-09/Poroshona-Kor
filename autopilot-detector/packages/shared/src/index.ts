@@ -7,6 +7,8 @@ export interface BehavioralSignal {
   timestamp: string;
   sessionId: string;
   userId: string;
+  activeDomain: string;
+  activeTabTitle: string;
 }
 
 export interface AutopilotScore {

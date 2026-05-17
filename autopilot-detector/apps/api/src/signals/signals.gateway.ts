@@ -15,8 +15,11 @@ import { UsePipes, ValidationPipe, ParseArrayPipe, OnModuleInit } from '@nestjs/
 import { StartSessionDto, BehavioralSignalDto } from './dto/signals.dto';
 import { AutopilotScoreService } from './autopilot-score.service';
 import { InterventionTimingService } from './intervention-timing.service';
+import { ContentClassificationService } from './content-classification.service';
+import { UsersService } from '../users/users.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { AppIntent } from '@autopilot/shared';
 
 interface JwtPayload {
   sub: string;
@@ -36,6 +39,8 @@ export class SignalsGateway
     private redisService: RedisService,
     private scoreService: AutopilotScoreService,
     private timingService: InterventionTimingService,
+    private classificationService: ContentClassificationService,
+    private usersService: UsersService,
     @InjectQueue('embedding') private embeddingQueue: Queue,
   ) {}
 
@@ -185,7 +190,27 @@ export class SignalsGateway
         (s) => JSON.parse(s) as BehavioralSignalDto,
       );
 
-      const autopilotScore = this.scoreService.computeScore(parsedSignals);
+      const session = await this.prisma.session.findUnique({
+        where: { id: sessionId },
+      });
+
+      const sessionIntent = session?.declaredIntent as string as AppIntent;
+
+      // Grab the dominant tab title from the most recent signal in the batch
+      const latestTitle = parsedSignals[parsedSignals.length - 1]?.activeTabTitle ?? '';
+      const latestDomain = parsedSignals[parsedSignals.length - 1]?.activeDomain ?? '';
+
+      // Run AI classification only when session has an intent and we have a title
+      const classification =
+        sessionIntent && latestTitle
+          ? await this.classificationService.classify(latestTitle, latestDomain, sessionIntent)
+          : undefined;
+
+      const autopilotScore = this.scoreService.computeScore(
+        parsedSignals,
+        sessionIntent,
+        classification,
+      );
 
       await this.prisma.autopilotScore.create({
         data: {
@@ -212,11 +237,12 @@ export class SignalsGateway
       );
 
       // Trigger AI Intervention job if score breaches the NUDGE threshold (or SLEEP_MODE threshold)
-      if (autopilotScore.score > 50) {
-        const session = await this.prisma.session.findUnique({ where: { id: sessionId }});
-        if (session) {
-          await this.timingService.evaluateAndTrigger(session, autopilotScore.score, parsedSignals);
-        }
+      if (autopilotScore.score > 50 && session) {
+        await this.timingService.evaluateAndTrigger(
+          session,
+          autopilotScore.score,
+          parsedSignals,
+        );
       }
     }
   }

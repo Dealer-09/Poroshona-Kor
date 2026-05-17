@@ -45,6 +45,12 @@ export class BehavioralSignalDto implements BehavioralSignal {
   @IsString()
   @IsNotEmpty()
   userId: string;
+
+  @IsString()
+  activeDomain: string;
+
+  @IsString()
+  activeTabTitle: string;
 }
 
 export class BehavioralSignalBatchDto {
