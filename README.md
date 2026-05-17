@@ -66,6 +66,17 @@ sequenceDiagram
 
 ---
 
+### Security & Hardening (Phase 5)
+- **BYOK (Bring Your Own Key):** Users can supply their own Groq API keys, which are securely encrypted at rest using **AES-256-GCM** before being stored in PostgreSQL.
+- **Memory Safety & Rate Limiting:** Built-in Redis garbage collection and LRU Map caching prevent backend memory leaks. Signal batching (every ~30s) prevents database hammering.
+- **Global Error Handling:** An `AllExceptionsFilter` intercepts unhandled runtime exceptions, preventing server crashes and securely masking sensitive stack traces from clients.
+
+### User Interface (Phase 4)
+- **Neo-Brutalist Aesthetics:** The web dashboard and Chrome Extension popup feature a cohesive, striking Neo-Brutalist design language (sharp borders, vibrant colors, hard shadows) to create a premium, engaging experience.
+- **RAG-Powered AI Coach:** The dashboard features an interactive AI Reflection Chat. Using Gemini embeddings and pgvector, it dynamically recalls your past similar sessions to provide highly personalized, context-aware productivity coaching powered by Llama-3.
+
+---
+
 ## Local Setup Instructions
 
 Follow these steps to run the complete monorepo locally.
@@ -89,7 +100,7 @@ Navigate to the respective directories and set up your environment variables:
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env.local
 ```
-**Important:** You must populate `GEMINI_API_KEY` and `GROQ_API_KEY` (or Anthropic API key) in `apps/api/.env`.
+**Important:** You must populate `GEMINI_API_KEY`, `GROQ_API_KEY`, and a 32-character `ENCRYPTION_SECRET` in `apps/api/.env`.
 
 ### 4. Database Initialization
 Generate the Prisma client and push the schema to your database (while inside `autopilot-detector`):
@@ -121,14 +132,12 @@ This command utilizes Turborepo to simultaneously start the NestJS API, Next.js 
 
 ## Future Scope
 
-While the MVP relies on heuristic formulas to calculate the Autopilot Score, our final vision incorporates true predictive analytics and broader ecosystem integration:
+While the current version features a robust real-time engine and RAG coaching, our final vision incorporates true predictive analytics:
 
 1. **Machine Learning Microservice:** 
    - A dedicated Python FastAPI service running **XGBoost** with GPU acceleration.
    - Will replace heuristic scores by predicting doomscroll probability based on trained datasets of real user behavioral windows.
-2. **AI Reflection Chat (RAG):**
-   - An interactive coaching interface within the dashboard that uses `pgvector` to recall past sessions and discuss triggers with the user contextually.
-3. **Advanced Cognitive Health Analytics:**
+2. **Advanced Cognitive Health Analytics:**
    - 7x24 heatmaps identifying the user's "Riskiest Hours" and "Healthiest Days".
-4. **Mobile App Integration:**
+3. **Mobile App Integration:**
    - Expanding the tracking ecosystem to native mobile platforms using React Native, utilizing screen-time APIs to aggregate mobile and desktop habits into a single cognitive profile.

@@ -24,7 +24,12 @@ export default function RegisterPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || "Failed to register");
+        let errMsg = "Failed to register";
+        if (typeof data.message === "string") errMsg = data.message;
+        else if (Array.isArray(data.message)) errMsg = data.message.join(", ");
+        else if (typeof data.message === "object" && data.message) errMsg = JSON.stringify(data.message);
+        
+        throw new Error(errMsg);
       }
 
       login(data.access_token);
