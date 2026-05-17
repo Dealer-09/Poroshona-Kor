@@ -103,6 +103,23 @@ export class SignalsGateway
     this.server.to(`user:${userId}`).emit('session:created', { sessionId: session.id });
   }
 
+  @SubscribeMessage('session:metadata')
+  async handleSessionMetadata(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { sessionId: string, pageTitle?: string, pageCategory?: string },
+  ) {
+    const clientData = client.data as { user?: JwtPayload };
+    if (!clientData.user?.sub) return;
+
+    await this.prisma.session.update({
+      where: { id: payload.sessionId },
+      data: {
+        pageTitle: payload.pageTitle,
+        pageCategory: payload.pageCategory,
+      },
+    });
+  }
+
   @SubscribeMessage('session:end')
   async handleSessionEnd(
     @ConnectedSocket() client: Socket,

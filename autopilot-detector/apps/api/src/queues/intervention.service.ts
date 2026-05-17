@@ -61,10 +61,18 @@ export class InterventionService {
     // 4. Build RAG prompt
     const systemPrompt =
       'You are a gentle digital wellbeing coach. Be concise, non-judgmental, and specific. Max 2 sentences.';
-    const userPrompt = `User intended to ${session.declaredIntent} on ${session.appOpened}.
-Current autopilot score: ${score}/100.
-Past similar sessions led to: ${pastOutcomes || 'No past sessions'}.
-Generate a contextual nudge.`;
+    
+    let userPrompt = `User intended to ${session.declaredIntent} on ${session.appOpened}.\n`;
+    if (session.pageTitle) {
+      userPrompt += `They are currently viewing content titled: "${session.pageTitle}"`;
+      if (session.pageCategory) {
+        userPrompt += ` (Category: ${session.pageCategory})`;
+      }
+      userPrompt += `.\n`;
+    }
+    userPrompt += `Current autopilot score: ${score}/100.\n`;
+    userPrompt += `Past similar sessions led to: ${pastOutcomes || 'No past sessions'}.\n`;
+    userPrompt += `Generate a contextual nudge.`;
 
     // 5. Call Groq API
     let message = 'You seem to be scrolling aimlessly. Time for a quick break?';

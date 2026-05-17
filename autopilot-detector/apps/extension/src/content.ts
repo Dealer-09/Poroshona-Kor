@@ -100,7 +100,45 @@ intervalId = window.setInterval(() => {
     }
     signalBatch = [];
   }
+
+  // SPA URL Change / Initial Metadata Extraction
+  if (window.location.href !== lastUrl) {
+    lastUrl = window.location.href;
+    sendMetadata();
+  }
 }, TICK_RATE_MS);
+
+function extractMetadata() {
+  const title = document.title;
+  let category = undefined;
+
+  if (window.location.hostname.includes("youtube.com")) {
+    const genreMeta = document.querySelector('meta[itemprop="genre"]');
+    if (genreMeta) {
+      category = genreMeta.getAttribute("content") || undefined;
+    }
+  } else if (window.location.hostname.includes("instagram.com")) {
+    category = "Social";
+  }
+
+  return { title, category };
+}
+
+function sendMetadata() {
+  try {
+    const metadata = extractMetadata();
+    chrome.runtime.sendMessage({
+      type: "SESSION_METADATA",
+      payload: metadata,
+    }).catch(() => {});
+  } catch (e) {
+    console.debug("Context invalidated while sending metadata");
+  }
+}
+
+// Initial trigger
+let lastUrl = window.location.href;
+setTimeout(sendMetadata, 1000); // Small delay to let document load fully
 
 // --- CLEANUP ---
 window.addEventListener("beforeunload", () => {

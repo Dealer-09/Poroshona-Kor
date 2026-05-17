@@ -23,8 +23,11 @@ export function CognitiveHealthMeter({ data }: { data: HeatmapCell[] }) {
 
     data.forEach(cell => {
       if (cell.avgScore !== null) {
-        dayScores[cell.day] += cell.avgScore;
-        dayCounts[cell.day] += 1;
+        const d = cell.day;
+        if (d >= 0 && d < 7) {
+          dayScores[d] = (dayScores[d] || 0) + cell.avgScore;
+          dayCounts[d] = (dayCounts[d] || 0) + 1;
+        }
 
         if (cell.avgScore > riskiestHour.score) {
           riskiestHour = { day: cell.day, hour: cell.hour, score: cell.avgScore };
@@ -33,8 +36,10 @@ export function CognitiveHealthMeter({ data }: { data: HeatmapCell[] }) {
     });
 
     for (let d = 0; d < 7; d++) {
-      if (dayCounts[d] > 0) {
-        const avg = dayScores[d] / dayCounts[d];
+      const count = dayCounts[d] || 0;
+      const scoreSum = dayScores[d] || 0;
+      if (count > 0) {
+        const avg = scoreSum / count;
         if (avg < healthiestDay.score) {
           healthiestDay = { day: d, score: avg };
         }

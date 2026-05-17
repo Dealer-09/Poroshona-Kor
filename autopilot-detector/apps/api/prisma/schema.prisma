@@ -39,6 +39,8 @@ model Session {
   endedAt        DateTime?
   appOpened      String
   declaredIntent AppIntent
+  pageTitle      String?
+  pageCategory   String?
   scores         AutopilotScore[]
   interventions  Intervention[]
   embeddings     SessionEmbedding[]

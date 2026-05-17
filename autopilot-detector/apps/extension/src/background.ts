@@ -126,6 +126,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     socket.emit("signal:batch", completeSignals);
   }
+
+  // Handle Session Metadata from Content Script
+  if (message.type === "SESSION_METADATA" && currentSessionId && socket?.connected) {
+    socket.emit("session:metadata", {
+      sessionId: currentSessionId,
+      pageTitle: message.payload.title,
+      pageCategory: message.payload.category,
+    });
+  }
   
   // Handle Session Start from Popup
   if (message.type === "START_SESSION" && socket?.connected) {

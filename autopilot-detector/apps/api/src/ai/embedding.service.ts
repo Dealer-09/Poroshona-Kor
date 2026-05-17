@@ -102,6 +102,15 @@ export class EmbeddingService {
         ? 0
         : totalPassive / (totalPassive + totalActive);
 
-    return `User intended to ${session.declaredIntent} on ${session.appOpened}. Average scroll velocity was ${avgScroll.toFixed(2)}. Passive time ratio was ${(passiveRatio * 100).toFixed(1)}%. Total signals analyzed: ${signals.length}.`;
+    let context = `User intended to ${session.declaredIntent} on ${session.appOpened}. `;
+    if (session.pageTitle) {
+      context += `Content title: "${session.pageTitle}". `;
+    }
+    if (session.pageCategory) {
+      context += `Content category: "${session.pageCategory}". `;
+    }
+    context += `Average scroll velocity was ${avgScroll.toFixed(2)}. Passive time ratio was ${(passiveRatio * 100).toFixed(1)}%. Total signals analyzed: ${signals.length}.`;
+    
+    return context;
   }
 }
