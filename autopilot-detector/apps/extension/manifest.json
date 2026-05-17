@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Autopilot Detector",
+  "version": "1.0.0",
+  "description": "Digital Autopilot Detector",
+  "permissions": ["tabs", "activeTab", "storage", "scripting", "alarms"],
+  "host_permissions": ["*://*/*"],
+  "background": {
+    "service_worker": "src/background.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*/*"],
+      "js": ["src/content.ts"]
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup.html"
+  }
+}

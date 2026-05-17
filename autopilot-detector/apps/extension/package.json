@@ -1,0 +1,19 @@
+{
+  "name": "@autopilot/extension",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@autopilot/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "typescript": "^5.2.2",
+    "vite": "^5.2.0",
+    "vite-plugin-web-extension": "^4.1.2"
+  }
+}
