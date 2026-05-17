@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AppIntent {
+  STUDY
+  TUTORIAL
+  ENTERTAINMENT
+  RELAXATION
+  AVOIDING_WORK
+}
+
+enum InterventionType {
+  NUDGE
+  PAUSE
+  REFLECTION
+  SLEEP_MODE
+}
+
+model User {
+  id        String    @id @default(uuid()) @db.Uuid
+  email     String    @unique
+  password  String
+  createdAt DateTime  @default(now())
+  sessions  Session[]
+}
+
+model Session {
+  id             String             @id @default(uuid()) @db.Uuid
+  userId         String             @db.Uuid
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startedAt      DateTime           @default(now())
+  endedAt        DateTime?
+  appOpened      String
+  declaredIntent AppIntent
+  scores         AutopilotScore[]
+  interventions  Intervention[]
+  embeddings     SessionEmbedding[]
+}
+
+model AutopilotScore {
+  id                    String   @id @default(uuid()) @db.Uuid
+  sessionId             String   @db.Uuid
+  session               Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  score                 Float
+  focusFragmentation    Float
+  passiveRatio          Float
+  cognitiveDrift        Float
+  doomscrollProbability Float
+  timestamp             DateTime @default(now())
+}
+
+model Intervention {
+  id          String           @id @default(uuid()) @db.Uuid
+  sessionId   String           @db.Uuid
+  session     Session          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  type        InterventionType
+  message     String
+  triggeredAt DateTime         @default(now())
+}
+
+model SessionEmbedding {
+  id        String                    @id @default(uuid()) @db.Uuid
+  sessionId String                    @db.Uuid
+  session   Session                   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  embedding Unsupported("vector(1536)")
+}
