@@ -1,6 +1,20 @@
 # Digital Autopilot Detector
 
-> Breaking the loop of doomscrolling through intelligent, context-aware conscious friction.
+> The algorithm is designed by a thousand engineers to steal your time.
+> We built one thing to take it back.
+
+### 🚀 The Elevator Pitch
+**Autopilot Detector is an AI-powered cognitive guardian that analyzes real-time browsing telemetry to catch you the exact moment you slip into mindless doomscrolling.** Built for students and knowledge workers, it intercepts digital distraction and snaps your brain out of 'autopilot' before you lose hours to the algorithm.
+
+---
+
+## 🌍 Live Deployment & Demo
+
+- **Backend API (Render):** `https://poroshona-kor.onrender.com`
+- **Web Dashboard (Vercel):** *Your Vercel URL here*
+- **Chrome Extension:** Pre-compiled and ready for installation in the `apps/extension/dist` folder.
+
+---
 
 ## The Significance & Solution
 
@@ -29,6 +43,14 @@ This project is structured as a high-performance **Turborepo** monorepo, utilizi
 - **ORM:** [Prisma](https://www.prisma.io/) (v7.8) with `@prisma/adapter-pg`
 - **Vector Storage:** `pgvector` for embedding session context
 - **LLM / GenAI:** Gemini (`embedding-001`) for session embeddings, Claude (Anthropic) / Groq for RAG-powered reflection interventions.
+
+---
+
+## ⚡ The Biggest Technical Challenge We Solved
+
+**Our biggest challenge was processing high-frequency behavioral telemetry (scrolling, tab-switching) without overwhelming our AI APIs or lagging the user's browser.** 
+
+We solved this using a custom WebSocket architecture backed by Redis. Instead of constant AI pings, we built a rolling data buffer that aggregates browser signals and offloads heavy LLM classification to background BullMQ workers in optimized 30-second batches. This avoids rate limits while ensuring zero latency for the user.
 
 ---
 
