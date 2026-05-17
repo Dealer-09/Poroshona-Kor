@@ -5,7 +5,7 @@ import { SignalsModule } from './signals/signals.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
-
+import { RedisModule } from './redis/redis.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -14,6 +14,7 @@ import { PrismaModule } from './prisma/prisma.module';
       validate: validateEnv,
     }),
     PrismaModule,
+    RedisModule,
     AuthModule,
     SignalsModule,
     SessionsModule,
