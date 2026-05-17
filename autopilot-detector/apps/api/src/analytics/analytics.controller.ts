@@ -8,7 +8,7 @@ export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('heatmap')
-  async getWeeklyHeatmap(@Req() req: any) {
+  async getWeeklyHeatmap(@Req() req: { user: { id: string } }) {
     return this.analyticsService.getWeeklyHeatmap(req.user.id);
   }
 }

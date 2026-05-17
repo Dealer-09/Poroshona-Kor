@@ -34,10 +34,17 @@ export class AnalyticsService {
     });
 
     // Initialize 7 days x 24 hours grid
-    const heatmap: Record<string, { totalScore: number; scoreCount: number; interventions: number }> = {};
+    const heatmap: Record<
+      string,
+      { totalScore: number; scoreCount: number; interventions: number }
+    > = {};
     for (let d = 0; d < 7; d++) {
       for (let h = 0; h < 24; h++) {
-        heatmap[`${d}-${h}`] = { totalScore: 0, scoreCount: 0, interventions: 0 };
+        heatmap[`${d}-${h}`] = {
+          totalScore: 0,
+          scoreCount: 0,
+          interventions: 0,
+        };
       }
     }
 
@@ -59,11 +66,17 @@ export class AnalyticsService {
     }
 
     // Format output
-    const result: { day: number; hour: number; avgScore: number | null; interventionCount: number }[] = [];
+    const result: {
+      day: number;
+      hour: number;
+      avgScore: number | null;
+      interventionCount: number;
+    }[] = [];
     for (let d = 0; d < 7; d++) {
       for (let h = 0; h < 24; h++) {
         const cell = heatmap[`${d}-${h}`];
-        const avgScore = cell.scoreCount > 0 ? cell.totalScore / cell.scoreCount : null;
+        const avgScore =
+          cell.scoreCount > 0 ? cell.totalScore / cell.scoreCount : null;
         result.push({
           day: d,
           hour: h,

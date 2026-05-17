@@ -38,7 +38,9 @@ export class InterventionService {
     score: number,
     signals: BehavioralSignal[],
   ) {
-    this.logger.log(`Generating intervention for session: ${sessionId} (Score: ${score})`);
+    this.logger.log(
+      `Generating intervention for session: ${sessionId} (Score: ${score})`,
+    );
 
     // 1. Get current session
     const session = await this.prisma.session.findUnique({
@@ -74,7 +76,7 @@ export class InterventionService {
     // 4. Build RAG prompt
     const systemPrompt =
       'You are a gentle digital wellbeing coach. Be concise, non-judgmental, and specific. Max 2 sentences.';
-    
+
     let userPrompt = `User intended to ${session.declaredIntent} on ${session.appOpened}.\n`;
     if (session.pageTitle) {
       userPrompt += `They are currently viewing content titled: "${session.pageTitle}"`;
@@ -115,7 +117,10 @@ export class InterventionService {
         message = chatCompletion.choices[0].message.content;
       }
     } catch (error) {
-      this.logger.error(`Groq API failed using model ${modelToUse}, using fallback message`, error);
+      this.logger.error(
+        `Groq API failed using model ${modelToUse}, using fallback message`,
+        error,
+      );
     }
 
     // 6. Save to PostgreSQL
@@ -131,10 +136,13 @@ export class InterventionService {
 
     // 7. Publish to Redis for WebSocket delivery
     const redis = this.redisService.getClient();
-    await redis.publish('interventions', JSON.stringify({
-      userId: session.userId,
-      intervention
-    }));
+    await redis.publish(
+      'interventions',
+      JSON.stringify({
+        userId: session.userId,
+        intervention,
+      }),
+    );
 
     return intervention;
   }

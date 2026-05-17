@@ -44,7 +44,7 @@ export default async function SessionsPage() {
 
       <div className="neo-card p-6 bg-neo-secondary">
         <h3 className="font-black text-2xl uppercase mb-6 bg-black text-white px-4 py-2 inline-block transform rotate-1 shadow-[4px_4px_0_#ff3b30]">
-          Coach's Daily Summary
+          Coach&apos;s Daily Summary
         </h3>
         
         <div className="min-h-[150px] border-4 border-black bg-white p-6">

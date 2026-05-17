@@ -12,4 +12,3 @@ import { UsersModule } from '../users/users.module';
   exports: [EmbeddingService, AiChatService],
 })
 export class AiModule {}
-

@@ -70,7 +70,7 @@ export function ReflectionChat() {
         content: data.response,
       };
       setMessages(prev => [...prev, aiMsg]);
-    } catch (err) {
+    } catch {
       const errorMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "ai",
@@ -88,7 +88,7 @@ export function ReflectionChat() {
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[80%] p-4 font-bold text-lg border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] ${
+            <div className={`max-w-[80%] p-4 font-bold text-lg border-4 border-black shadow-[4px_4px_0_rgba(0,0,0,1)] whitespace-pre-wrap ${
               msg.role === "user" 
                 ? "bg-neo-primary text-white" 
                 : "bg-neo-secondary text-black"

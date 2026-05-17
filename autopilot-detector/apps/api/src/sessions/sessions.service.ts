@@ -27,14 +27,17 @@ export class SessionsService {
       },
     });
 
-    return sessions.map(session => {
-      const peakScore = session.scores.reduce((max, s) => Math.max(max, s.score), 0);
-      
+    return sessions.map((session) => {
+      const peakScore = session.scores.reduce(
+        (max, s) => Math.max(max, s.score),
+        0,
+      );
+
       // Determine inferred actual behavior based on peak score (simplistic heuristic)
-      let actualBehavior = "Study";
-      if (peakScore > 85) actualBehavior = "Doomscrolling";
-      else if (peakScore > 60) actualBehavior = "Mixed";
-      else if (peakScore > 40) actualBehavior = "Entertainment";
+      let actualBehavior = 'Study';
+      if (peakScore > 85) actualBehavior = 'Doomscrolling';
+      else if (peakScore > 60) actualBehavior = 'Mixed';
+      else if (peakScore > 40) actualBehavior = 'Entertainment';
 
       return {
         id: session.id,

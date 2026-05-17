@@ -17,7 +17,7 @@ export class SessionsController {
   constructor(private readonly sessionsService: SessionsService) {}
 
   @Get()
-  async getAllSessions(@Req() req: any) {
+  async getAllSessions(@Req() req: AuthenticatedRequest) {
     return this.sessionsService.getAllSessions(req.user.id);
   }
 

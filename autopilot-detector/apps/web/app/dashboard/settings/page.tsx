@@ -46,7 +46,7 @@ export default function SettingsPage() {
     const keyToSave = isGroq ? groqKey.trim() : geminiKey.trim();
     if (!keyToSave) return;
     
-    isGroq ? setSavingGroq(true) : setSavingGemini(true);
+    if (isGroq) setSavingGroq(true); else setSavingGemini(true);
     setStatus("idle");
     try {
       const res = await fetch(`${API_BASE}/users/settings`, {
@@ -62,7 +62,7 @@ export default function SettingsPage() {
       if (!res.ok) throw new Error("Failed to save");
       setStatus("success");
       setStatusMsg(`${isGroq ? 'Groq' : 'Gemini'} API key saved successfully.`);
-      isGroq ? setGroqKey("") : setGeminiKey("");
+      if (isGroq) setGroqKey(""); else setGeminiKey("");
       
       const updated = await fetch(`${API_BASE}/users/settings`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -72,7 +72,7 @@ export default function SettingsPage() {
       setStatus("error");
       setStatusMsg("Failed to save key. Please try again.");
     } finally {
-      isGroq ? setSavingGroq(false) : setSavingGemini(false);
+      if (isGroq) setSavingGroq(false); else setSavingGemini(false);
     }
   };
 
@@ -80,7 +80,7 @@ export default function SettingsPage() {
     if (!token) return;
     const isGroq = type === 'groq';
     
-    isGroq ? setSavingGroq(true) : setSavingGemini(true);
+    if (isGroq) setSavingGroq(true); else setSavingGemini(true);
     try {
       await fetch(`${API_BASE}/users/settings`, {
         method: "PUT",
@@ -99,7 +99,7 @@ export default function SettingsPage() {
       }).then((r) => r.json());
       setSettings(updated);
     } finally {
-      isGroq ? setSavingGroq(false) : setSavingGemini(false);
+      if (isGroq) setSavingGroq(false); else setSavingGemini(false);
     }
   };
 

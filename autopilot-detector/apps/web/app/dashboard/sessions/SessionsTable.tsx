@@ -50,7 +50,7 @@ export function SessionsTable({ sessions }: { sessions: SessionData[] }) {
                 {session.appOpened}
               </td>
               <td className="p-4 border-b-4 border-l-4 border-black italic">
-                "{session.declaredIntent}"
+                &quot;{session.declaredIntent}&quot;
               </td>
               <td className="p-4 border-b-4 border-l-4 border-black uppercase tracking-wider">
                 <span className={`px-2 py-1 border-2 border-black ${

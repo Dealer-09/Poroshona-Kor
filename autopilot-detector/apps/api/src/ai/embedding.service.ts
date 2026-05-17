@@ -16,7 +16,8 @@ export class EmbeddingService {
     private prisma: PrismaService,
     private usersService: UsersService,
   ) {
-    this.serverGeminiKey = this.configService.get<string>('GEMINI_API_KEY') || '';
+    this.serverGeminiKey =
+      this.configService.get<string>('GEMINI_API_KEY') || '';
   }
 
   private async getAiClient(userId?: string): Promise<GoogleGenAI> {
@@ -25,7 +26,7 @@ export class EmbeddingService {
       const userKey = await this.usersService.getRawGeminiApiKey(userId);
       if (userKey) activeKey = userKey;
     }
-    
+
     if (!activeKey) {
       throw new Error('No Gemini API key available (neither user nor server)');
     }
@@ -38,7 +39,7 @@ export class EmbeddingService {
     taskType: 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY' = 'RETRIEVAL_DOCUMENT',
   ): Promise<number[]> {
     this.logger.log(`Generating embedding for session ${session.id}...`);
-    
+
     const summary = this.createSessionSummary(session, signals);
     const aiClient = await this.getAiClient(session.userId);
 
@@ -51,7 +52,11 @@ export class EmbeddingService {
       },
     });
 
-    if (!response.embeddings || response.embeddings.length === 0 || !response.embeddings[0].values) {
+    if (
+      !response.embeddings ||
+      response.embeddings.length === 0 ||
+      !response.embeddings[0].values
+    ) {
       throw new Error('Failed to generate embedding');
     }
 
@@ -59,7 +64,9 @@ export class EmbeddingService {
   }
 
   async embedQuery(text: string, userId?: string): Promise<number[]> {
-    this.logger.log(`Generating embedding for query: "${text.substring(0, 30)}..."`);
+    this.logger.log(
+      `Generating embedding for query: "${text.substring(0, 30)}..."`,
+    );
     const aiClient = await this.getAiClient(userId);
 
     const response = await aiClient.models.embedContent({
@@ -71,7 +78,11 @@ export class EmbeddingService {
       },
     });
 
-    if (!response.embeddings || response.embeddings.length === 0 || !response.embeddings[0].values) {
+    if (
+      !response.embeddings ||
+      response.embeddings.length === 0 ||
+      !response.embeddings[0].values
+    ) {
       throw new Error('Failed to generate query embedding');
     }
 
@@ -95,7 +106,7 @@ export class EmbeddingService {
     limit: number = 3,
   ): Promise<(Session & { interventions: any[] })[]> {
     const vectorString = `[${embedding.join(',')}]`;
-    
+
     // Find sessions using cosine distance (<=>)
     const similarEmbeddings = await this.prisma.$queryRaw<
       Array<{ sessionId: string }>
@@ -144,7 +155,7 @@ export class EmbeddingService {
       context += `Content category: "${session.pageCategory}". `;
     }
     context += `Average scroll velocity was ${avgScroll.toFixed(2)}. Passive time ratio was ${(passiveRatio * 100).toFixed(1)}%. Total signals analyzed: ${signals.length}.`;
-    
+
     return context;
   }
 }

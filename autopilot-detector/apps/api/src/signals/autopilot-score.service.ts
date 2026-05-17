@@ -34,7 +34,10 @@ export class AutopilotScoreService {
     // 3. Focus Fragmentation (Tab Switch Rate)
     // tabSwitchCount is an absolute counter from the extension.
     // Switches in this window is (last - first)
-    const switchesInWindow = Math.max(0, signals[signals.length - 1].tabSwitchCount - signals[0].tabSwitchCount);
+    const switchesInWindow = Math.max(
+      0,
+      signals[signals.length - 1].tabSwitchCount - signals[0].tabSwitchCount,
+    );
     const tabSwitchRatePerMin = switchesInWindow / timeWindowMinutes;
     // Normalize to 0-1 (assume 10 switches per min is 100% fragmented)
     const focusFragmentation = Math.min(tabSwitchRatePerMin / 10, 1.0);
@@ -101,53 +104,52 @@ export class AutopilotScoreService {
         // But fast scroll (e.g. skipping through comments) still counts.
         passiveRatio = passiveRatio * 0.05;
         doomscrollProbability =
-          (passiveRatio * 0.3) +
-          (focusFragmentation * 0.4) +
-          (scrollVelocityNormalized * 0.5);
+          passiveRatio * 0.3 +
+          focusFragmentation * 0.4 +
+          scrollVelocityNormalized * 0.5;
       } else if (contentType === 'reading') {
         // Reading domain (Wikipedia, docs, GitHub). Slow scroll = engaged = good.
         // Zero scroll over a long passive window = possibly zoned out = mild penalty.
-        const isZonedOut = scrollVelocityNormalized < 0.02 && passiveRatio > 0.8;
+        const isZonedOut =
+          scrollVelocityNormalized < 0.02 && passiveRatio > 0.8;
         if (isZonedOut) {
           // User is staring at a page without reading — mild increase
           doomscrollProbability =
-            (passiveRatio * 0.4) +
-            (focusFragmentation * 0.3) +
-            0.1; // flat bump for idle staring
+            passiveRatio * 0.4 + focusFragmentation * 0.3 + 0.1; // flat bump for idle staring
         } else {
           // Actively reading / slow-scrolling — fully forgiven
           passiveRatio = passiveRatio * 0.2;
           doomscrollProbability =
-            (passiveRatio * 0.3) +
-            (focusFragmentation * 0.3) +
-            (scrollVelocityNormalized * 0.2);
+            passiveRatio * 0.3 +
+            focusFragmentation * 0.3 +
+            scrollVelocityNormalized * 0.2;
         }
       } else if (contentType === 'gaming' || contentType === 'entertainment') {
         // Explicitly off-task content during STUDY — heavy penalty
         doomscrollProbability =
-          (passiveRatio * 0.75) +
-          (focusFragmentation * 0.25) +
-          (scrollVelocityNormalized * 0.3);
-        doomscrollProbability = (doomscrollProbability * 1.6) + 0.25;
+          passiveRatio * 0.75 +
+          focusFragmentation * 0.25 +
+          scrollVelocityNormalized * 0.3;
+        doomscrollProbability = doomscrollProbability * 1.6 + 0.25;
       } else if (contentType === 'social') {
         // Social feed during study — heavy penalty
         doomscrollProbability =
-          (passiveRatio * 0.75) +
-          (focusFragmentation * 0.25) +
-          (scrollVelocityNormalized * 0.3);
-        doomscrollProbability = (doomscrollProbability * 1.5) + 0.2;
+          passiveRatio * 0.75 +
+          focusFragmentation * 0.25 +
+          scrollVelocityNormalized * 0.3;
+        doomscrollProbability = doomscrollProbability * 1.5 + 0.2;
       } else {
         // Unknown content type — fall back to domain-based rules
         if (isStudyDomain) {
           passiveRatio = passiveRatio * 0.4;
         }
         doomscrollProbability =
-          (passiveRatio * 0.75) +
-          (focusFragmentation * 0.25) +
-          (scrollVelocityNormalized * 0.3);
+          passiveRatio * 0.75 +
+          focusFragmentation * 0.25 +
+          scrollVelocityNormalized * 0.3;
         // If domain looks like entertainment but classification unknown, still penalize
         if ((isSocial || isEntertainment) && !isRelevant) {
-          doomscrollProbability = (doomscrollProbability * 1.5) + 0.2;
+          doomscrollProbability = doomscrollProbability * 1.5 + 0.2;
         }
       }
     } else if (intent === AppIntent.TUTORIAL) {
@@ -155,8 +157,11 @@ export class AutopilotScoreService {
       if (isEntertainment) {
         passiveRatio = passiveRatio * 0.2;
       }
-      
-      doomscrollProbability = (passiveRatio * 0.75) + (focusFragmentation * 0.25) + (scrollVelocityNormalized * 0.3);
+
+      doomscrollProbability =
+        passiveRatio * 0.75 +
+        focusFragmentation * 0.25 +
+        scrollVelocityNormalized * 0.3;
 
       // Penalize social media
       if (isSocial) {
@@ -168,26 +173,39 @@ export class AutopilotScoreService {
 
       // But catch the high-anxiety doomscroll / task-switch loop
       if (scrollVelocityNormalized > 0.4 && focusFragmentation > 0.3) {
-        doomscrollProbability = (focusFragmentation * 0.6 + scrollVelocityNormalized * 0.6) * 1.4;
+        doomscrollProbability =
+          (focusFragmentation * 0.6 + scrollVelocityNormalized * 0.6) * 1.4;
       } else {
-        doomscrollProbability = (passiveRatio * 0.5) + (focusFragmentation * 0.25) + (scrollVelocityNormalized * 0.3);
+        doomscrollProbability =
+          passiveRatio * 0.5 +
+          focusFragmentation * 0.25 +
+          scrollVelocityNormalized * 0.3;
       }
     } else if (intent === AppIntent.PRODUCTIVITY) {
       // Productivity allows a mix of tools: GitHub, LinkedIn, Docs, Tutorials (YouTube)
-      const isProductiveDomain = isStudyDomain || dominantDomain.includes('linkedin.com') || dominantDomain.includes('youtube.com');
-      
-      doomscrollProbability = (passiveRatio * 0.6) + (focusFragmentation * 0.2) + (scrollVelocityNormalized * 0.3);
-      
+      const isProductiveDomain =
+        isStudyDomain ||
+        dominantDomain.includes('linkedin.com') ||
+        dominantDomain.includes('youtube.com');
+
+      doomscrollProbability =
+        passiveRatio * 0.6 +
+        focusFragmentation * 0.2 +
+        scrollVelocityNormalized * 0.3;
+
       if (!isProductiveDomain && (isSocial || isEntertainment)) {
         // Off-task during Productivity intent
-        doomscrollProbability = (doomscrollProbability * 1.4) + 0.15;
+        doomscrollProbability = doomscrollProbability * 1.4 + 0.15;
       } else if (isProductiveDomain) {
         // High focus on productivity tasks is good, reduce score
         doomscrollProbability = doomscrollProbability * 0.7;
       }
     } else {
       // Default fallback (no intent or unknown)
-      doomscrollProbability = (passiveRatio * 0.75) + (focusFragmentation * 0.25) + (scrollVelocityNormalized * 0.3);
+      doomscrollProbability =
+        passiveRatio * 0.75 +
+        focusFragmentation * 0.25 +
+        scrollVelocityNormalized * 0.3;
     }
 
     // Keep within bounds [0, 1]

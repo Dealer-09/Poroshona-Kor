@@ -28,9 +28,6 @@ export class UsersController {
     @Request() req: { user: { id: string } },
     @Body() dto: UpdateSettingsDto,
   ) {
-    return this.usersService.updateSettings(
-      req.user.id,
-      dto,
-    );
+    return this.usersService.updateSettings(req.user.id, dto);
   }
 }

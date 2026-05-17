@@ -26,12 +26,14 @@ export class InterventionTimingService {
     const lastTimestamp = await redis.get(lastInterventionKey);
 
     const now = new Date();
-    
+
     // 1. Cooldown check
     if (lastTimestamp) {
       const diffMinutes = (now.getTime() - parseInt(lastTimestamp, 10)) / 60000;
       if (diffMinutes < this.COOLDOWN_MINUTES) {
-        this.logger.debug(`Cooldown active for user ${userId}. Skipping intervention.`);
+        this.logger.debug(
+          `Cooldown active for user ${userId}. Skipping intervention.`,
+        );
         return false;
       }
     }
@@ -39,10 +41,18 @@ export class InterventionTimingService {
     // 2. Active typing guard
     // Check if activeTime is dominant in the last 30 seconds (last 3 batches if each is 10s)
     const recentSignals = signals.slice(-3);
-    const recentActive = recentSignals.reduce((acc, s) => acc + s.activeTime, 0);
-    const recentPassive = recentSignals.reduce((acc, s) => acc + s.passiveTime, 0);
+    const recentActive = recentSignals.reduce(
+      (acc, s) => acc + s.activeTime,
+      0,
+    );
+    const recentPassive = recentSignals.reduce(
+      (acc, s) => acc + s.passiveTime,
+      0,
+    );
     if (recentSignals.length > 0 && recentActive > recentPassive * 2) {
-      this.logger.debug(`User ${userId} is actively typing. Skipping intervention.`);
+      this.logger.debug(
+        `User ${userId} is actively typing. Skipping intervention.`,
+      );
       return false;
     }
 
@@ -51,11 +61,12 @@ export class InterventionTimingService {
     // 3. Evaluation logic
     const currentHour = now.getHours();
     const isLateNight = currentHour >= 23 || currentHour < 6;
-    const sessionDurationMinutes = (now.getTime() - session.startedAt.getTime()) / 60000;
-    
+    const sessionDurationMinutes =
+      (now.getTime() - session.startedAt.getTime()) / 60000;
+
     // Track 60+ crossings
     const crossingKey = `session:${session.id}:crossings`;
-    
+
     if (isLateNight && score > 50) {
       shouldTrigger = true; // SLEEP_MODE
     } else if (score > 85 || sessionDurationMinutes > 90) {
@@ -79,9 +90,11 @@ export class InterventionTimingService {
     }
 
     if (shouldTrigger) {
-      this.logger.log(`Triggering intervention for session ${session.id} with score ${score}`);
+      this.logger.log(
+        `Triggering intervention for session ${session.id} with score ${score}`,
+      );
       await redis.set(lastInterventionKey, now.getTime().toString());
-      
+
       // Enqueue to AI service for generating the actual message and saving
       await this.aiQueue.add('generate-intervention', {
         sessionId: session.id,

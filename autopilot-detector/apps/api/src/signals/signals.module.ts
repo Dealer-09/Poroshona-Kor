@@ -11,7 +11,11 @@ import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [AuthModule, PrismaModule, RedisModule, QueuesModule, UsersModule],
-  providers: [SignalsGateway, AutopilotScoreService, InterventionTimingService, ContentClassificationService],
+  providers: [
+    SignalsGateway,
+    AutopilotScoreService,
+    InterventionTimingService,
+    ContentClassificationService,
+  ],
 })
 export class SignalsModule {}
-

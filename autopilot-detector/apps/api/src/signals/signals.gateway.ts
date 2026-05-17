@@ -11,11 +11,19 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
-import { UsePipes, ValidationPipe, ParseArrayPipe, OnModuleInit } from '@nestjs/common';
+import {
+  UsePipes,
+  ValidationPipe,
+  ParseArrayPipe,
+  OnModuleInit,
+} from '@nestjs/common';
 import { StartSessionDto, BehavioralSignalDto } from './dto/signals.dto';
 import { AutopilotScoreService } from './autopilot-score.service';
 import { InterventionTimingService } from './intervention-timing.service';
-import { ContentClassificationService, ContentClassification } from './content-classification.service';
+import {
+  ContentClassificationService,
+  ContentClassification,
+} from './content-classification.service';
 import { UsersService } from '../users/users.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -28,7 +36,8 @@ interface JwtPayload {
 
 @WebSocketGateway({ cors: true })
 export class SignalsGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit {
+  implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit
+{
   @WebSocketServer()
   server: Server;
 
@@ -41,7 +50,7 @@ export class SignalsGateway
     private classificationService: ContentClassificationService,
     private usersService: UsersService,
     @InjectQueue('embedding') private embeddingQueue: Queue,
-  ) { }
+  ) {}
 
   async onModuleInit() {
     const subscriber = this.redisService.getClient().duplicate();
@@ -49,8 +58,13 @@ export class SignalsGateway
     subscriber.on('message', (channel, message) => {
       if (channel === 'interventions') {
         try {
-          const payload = JSON.parse(message);
-          this.server.to(`user:${payload.userId}`).emit('intervention:trigger', payload.intervention);
+          const payload = JSON.parse(message) as {
+            userId: string;
+            intervention: any;
+          };
+          this.server
+            .to(`user:${payload.userId}`)
+            .emit('intervention:trigger', payload.intervention);
         } catch (e) {
           console.error('Failed to parse intervention message', e);
         }
@@ -74,7 +88,7 @@ export class SignalsGateway
       clientData.user = decoded;
 
       // Join user-specific room
-      client.join(`user:${decoded.sub}`);
+      void client.join(`user:${decoded.sub}`);
     } catch {
       client.disconnect();
     }
@@ -104,13 +118,16 @@ export class SignalsGateway
     });
 
     console.log(`🚀 New Session Started! Intent: ${payload.declaredIntent}`);
-    this.server.to(`user:${userId}`).emit('session:created', { sessionId: session.id });
+    this.server
+      .to(`user:${userId}`)
+      .emit('session:created', { sessionId: session.id });
   }
 
   @SubscribeMessage('session:metadata')
   async handleSessionMetadata(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { sessionId: string, pageTitle?: string, pageCategory?: string },
+    @MessageBody()
+    payload: { sessionId: string; pageTitle?: string; pageCategory?: string },
   ) {
     const clientData = client.data as { user?: JwtPayload };
     if (!clientData.user?.sub) return;
@@ -139,11 +156,21 @@ export class SignalsGateway
       data: { endedAt: new Date() },
     });
 
+    // Cleanup Redis memory, but leave it alive for 5 minutes (300s)
+    // so the EmbeddingProcessor (BullMQ worker) has time to read the signals!
+    const redis = this.redisService.getClient();
+    const key = `session:${payload.sessionId}:signals`;
+    const batchCountKey = `session:${payload.sessionId}:batchCount`;
+    await redis.expire(key, 300);
+    await redis.expire(batchCountKey, 300);
+
     await this.embeddingQueue.add('generate-embedding', {
       sessionId: payload.sessionId,
     });
 
-    this.server.to(`user:${userId}`).emit('session:ended', { sessionId: payload.sessionId });
+    this.server
+      .to(`user:${userId}`)
+      .emit('session:ended', { sessionId: payload.sessionId });
   }
 
   @SubscribeMessage('signal:batch')
@@ -177,13 +204,16 @@ export class SignalsGateway
     // Failsafe to guarantee max length is strictly bound to 100
     // even if the batch itself was very large
     await redis.ltrim(key, -100, -1);
+    await redis.expire(key, 86400); // 24 hours fallback TTL
 
     // Batch counting and heuristic score calculation
     const batchCountKey = `session:${sessionId}:batchCount`;
     const batchCount = await redis.incr(batchCountKey);
+    await redis.expire(batchCountKey, 86400); // 24 hours fallback TTL
 
-    // Calculate score on EVERY batch for instant testing!
-    if (batchCount % 1 === 0) {
+    // Calculate score every 6 batches (~30 seconds assuming 5s batch interval)
+    // This prevents hammering the database and the AI Classification API
+    if (batchCount % 6 === 0) {
       const rawSignals = await redis.lrange(key, 0, -1);
       const parsedSignals = rawSignals.map(
         (s) => JSON.parse(s) as BehavioralSignalDto,
@@ -196,8 +226,10 @@ export class SignalsGateway
       const sessionIntent = session?.declaredIntent as string as AppIntent;
 
       // Grab the dominant tab title from the most recent signal in the batch
-      const latestTitle = parsedSignals[parsedSignals.length - 1]?.activeTabTitle ?? '';
-      const latestDomain = parsedSignals[parsedSignals.length - 1]?.activeDomain ?? '';
+      const latestTitle =
+        parsedSignals[parsedSignals.length - 1]?.activeTabTitle ?? '';
+      const latestDomain =
+        parsedSignals[parsedSignals.length - 1]?.activeDomain ?? '';
 
       // Run AI classification only when session has an intent and we have a title
       let classification: ContentClassification | undefined = undefined;

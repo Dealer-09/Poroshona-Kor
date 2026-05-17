@@ -23,7 +23,9 @@ export class EmbeddingProcessor extends WorkerHost {
   }
 
   async process(job: Job<EmbeddingJobData, any, string>): Promise<any> {
-    this.logger.log(`Processing embedding job ${job.id} for session ${job.data.sessionId}`);
+    this.logger.log(
+      `Processing embedding job ${job.id} for session ${job.data.sessionId}`,
+    );
 
     try {
       const session = await this.prisma.session.findUnique({
@@ -37,20 +39,20 @@ export class EmbeddingProcessor extends WorkerHost {
       const redis = this.redisService.getClient();
       const signalsKey = `session:${session.id}:signals`;
       const rawSignals = await redis.lrange(signalsKey, 0, -1);
-      
-      const signals = rawSignals.map(
-        (s) => JSON.parse(s) as BehavioralSignal,
-      );
+
+      const signals = rawSignals.map((s) => JSON.parse(s) as BehavioralSignal);
 
       const embedding = await this.embeddingService.generateEmbedding(
         session,
         signals,
-        'RETRIEVAL_DOCUMENT'
+        'RETRIEVAL_DOCUMENT',
       );
 
       await this.embeddingService.storeEmbedding(session.id, embedding);
-      
-      this.logger.log(`Successfully generated and stored embedding for session ${session.id}`);
+
+      this.logger.log(
+        `Successfully generated and stored embedding for session ${session.id}`,
+      );
     } catch (error) {
       this.logger.error(`Failed to process embedding job ${job.id}`, error);
       throw error;

@@ -4,12 +4,12 @@ import Groq from 'groq-sdk';
 import { AppIntent } from '@autopilot/shared';
 
 export type ContentType =
-  | 'lecture'       // educational video (MIT lecture, Khan Academy, Coursera)
-  | 'tutorial'      // how-to / coding tutorial
-  | 'reading'       // article, docs, wikipedia — requires slow scrolling to engage
+  | 'lecture' // educational video (MIT lecture, Khan Academy, Coursera)
+  | 'tutorial' // how-to / coding tutorial
+  | 'reading' // article, docs, wikipedia — requires slow scrolling to engage
   | 'entertainment' // movie, TV show, non-educational video
-  | 'gaming'        // gaming stream, gameplay video
-  | 'social'        // social media feed, news feed
+  | 'gaming' // gaming stream, gameplay video
+  | 'social' // social media feed, news feed
   | 'unknown';
 
 export interface ContentClassification {
@@ -22,30 +22,84 @@ export interface ContentClassification {
 
 // Keyword-based fast-path — no API token needed
 const LECTURE_KEYWORDS = [
-  'lecture', 'course', 'lesson', 'class', 'tutorial', 'mit opencourseware',
-  'stanford', 'coursera', 'edx', 'khan academy', 'crash course', 'explained',
-  'introduction to', 'how to', 'learn ', 'university', 'academic', ' 101',
-  'programming', 'algorithm', 'data structure', 'calculus', 'physics',
-  'chemistry', 'biology', 'mathematics', 'machine learning', 'deep learning',
-  'lecture notes', 'study guide', 'exam prep',
+  'lecture',
+  'course',
+  'lesson',
+  'class',
+  'tutorial',
+  'mit opencourseware',
+  'stanford',
+  'coursera',
+  'edx',
+  'khan academy',
+  'crash course',
+  'explained',
+  'introduction to',
+  'how to',
+  'learn ',
+  'university',
+  'academic',
+  ' 101',
+  'programming',
+  'algorithm',
+  'data structure',
+  'calculus',
+  'physics',
+  'chemistry',
+  'biology',
+  'mathematics',
+  'machine learning',
+  'deep learning',
+  'lecture notes',
+  'study guide',
+  'exam prep',
 ];
 
 const ENTERTAINMENT_KEYWORDS = [
-  'funny', 'meme', 'prank', 'challenge', 'vlog', 'reaction', 'highlights',
-  'compilation', 'best moments', 'trailer', 'movie', 'series', 'episode',
-  'music video', 'song', 'roast', 'drama', 'exposed', 'celebrity',
+  'funny',
+  'meme',
+  'prank',
+  'challenge',
+  'vlog',
+  'reaction',
+  'highlights',
+  'compilation',
+  'best moments',
+  'trailer',
+  'movie',
+  'series',
+  'episode',
+  'music video',
+  'song',
+  'roast',
+  'drama',
+  'exposed',
+  'celebrity',
 ];
 
 const GAMING_KEYWORDS = [
-  'gameplay', "let's play", 'playthrough', 'gaming', 'gta', 'minecraft',
-  'fortnite', 'valorant', 'cod', 'call of duty', 'esports',
-  'speedrun', 'no commentary', 'game review', 'game trailer',
+  'gameplay',
+  "let's play",
+  'playthrough',
+  'gaming',
+  'gta',
+  'minecraft',
+  'fortnite',
+  'valorant',
+  'cod',
+  'call of duty',
+  'esports',
+  'speedrun',
+  'no commentary',
+  'game review',
+  'game trailer',
 ];
 
 function quickClassify(title: string, domain: string): ContentType | null {
   const lower = title.toLowerCase();
   if (GAMING_KEYWORDS.some((k) => lower.includes(k))) return 'gaming';
-  if (ENTERTAINMENT_KEYWORDS.some((k) => lower.includes(k))) return 'entertainment';
+  if (ENTERTAINMENT_KEYWORDS.some((k) => lower.includes(k)))
+    return 'entertainment';
   if (LECTURE_KEYWORDS.some((k) => lower.includes(k))) return 'lecture';
 
   if (
@@ -95,10 +149,22 @@ export class ContentClassificationService {
       return this.cache.get(cacheKey)!;
     }
 
+    // LRU Eviction: prevent infinite memory leak
+    if (this.cache.size > 1000) {
+      const firstKey = Array.from(this.cache.keys())[0];
+      if (firstKey) this.cache.delete(firstKey);
+    }
+
     // 1. Try keyword-based classification first (instant, zero cost)
     const quickType = quickClassify(title, domain);
     if (quickType !== null) {
-      const result = this.buildResult(quickType, intent, 0.85, 'keyword-match', false);
+      const result = this.buildResult(
+        quickType,
+        intent,
+        0.85,
+        'keyword-match',
+        false,
+      );
       this.cache.set(cacheKey, result);
       return result;
     }
@@ -109,9 +175,17 @@ export class ContentClassificationService {
 
     if (!activeKey) {
       // No AI available — return "unknown" so the score service falls back to domain rules
-      const fallback = this.buildResult('unknown', intent, 0.3, 'no-api-key-fallback', false);
+      const fallback = this.buildResult(
+        'unknown',
+        intent,
+        0.3,
+        'no-api-key-fallback',
+        false,
+      );
       this.cache.set(cacheKey, fallback);
-      this.logger.debug(`No Groq key available for "${title}" — using keyword-only fallback`);
+      this.logger.debug(
+        `No Groq key available for "${title}" — using keyword-only fallback`,
+      );
       return fallback;
     }
 
@@ -153,7 +227,13 @@ export class ContentClassificationService {
       return result;
     } catch (err) {
       this.logger.warn(`Groq classification failed for "${title}": ${err}`);
-      const fallback = this.buildResult('unknown', intent, 0.3, 'llm-error-fallback', false);
+      const fallback = this.buildResult(
+        'unknown',
+        intent,
+        0.3,
+        'llm-error-fallback',
+        false,
+      );
       return fallback;
     }
   }
@@ -165,7 +245,11 @@ export class ContentClassificationService {
     reason: string,
     aiPowered: boolean,
   ): ContentClassification {
-    const studyRelevantTypes: ContentType[] = ['lecture', 'tutorial', 'reading'];
+    const studyRelevantTypes: ContentType[] = [
+      'lecture',
+      'tutorial',
+      'reading',
+    ];
     const isRelevantToIntent =
       (intent === AppIntent.STUDY || intent === AppIntent.TUTORIAL) &&
       studyRelevantTypes.includes(contentType);
@@ -173,4 +257,3 @@ export class ContentClassificationService {
     return { contentType, isRelevantToIntent, confidence, reason, aiPowered };
   }
 }
-

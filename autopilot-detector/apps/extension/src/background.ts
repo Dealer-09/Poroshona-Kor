@@ -10,9 +10,12 @@ let rapidSwitchResetTimeout: ReturnType<typeof setTimeout> | null = null;
 const RAPID_SWITCH_WINDOW_MS = 60000; // 60 seconds
 
 // Reset total tabSwitchCount every 30 minutes
-setInterval(() => {
-  tabSwitchCount = 0;
-}, 30 * 60 * 1000);
+chrome.alarms.create("resetTabCount", { periodInMinutes: 30 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "resetTabCount") {
+    tabSwitchCount = 0;
+  }
+});
 
 const handleTabSwitch = () => {
   tabSwitchCount++;
