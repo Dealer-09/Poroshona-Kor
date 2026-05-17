@@ -13,6 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { UsePipes, ValidationPipe, ParseArrayPipe } from '@nestjs/common';
 import { StartSessionDto, BehavioralSignalDto } from './dto/signals.dto';
+import { AutopilotScoreService } from './autopilot-score.service';
 
 interface JwtPayload {
   sub: string;
@@ -30,6 +31,7 @@ export class SignalsGateway
     private jwtService: JwtService,
     private prisma: PrismaService,
     private redisService: RedisService,
+    private scoreService: AutopilotScoreService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -122,5 +124,30 @@ export class SignalsGateway
     // Failsafe to guarantee max length is strictly bound to 100
     // even if the batch itself was very large
     await redis.ltrim(key, -100, -1);
+
+    // Batch counting and heuristic score calculation
+    const batchCountKey = `session:${sessionId}:batchCount`;
+    const batchCount = await redis.incr(batchCountKey);
+
+    if (batchCount % 10 === 0) {
+      const rawSignals = await redis.lrange(key, 0, -1);
+      const parsedSignals = rawSignals.map((s) => JSON.parse(s));
+
+      const autopilotScore = this.scoreService.computeScore(parsedSignals);
+
+      await this.prisma.autopilotScore.create({
+        data: {
+          sessionId,
+          score: autopilotScore.score,
+          focusFragmentation: autopilotScore.focusFragmentation,
+          passiveRatio: autopilotScore.passiveRatio,
+          cognitiveDrift: autopilotScore.cognitiveDrift,
+          doomscrollProbability: autopilotScore.doomscrollProbability,
+          timestamp: new Date(autopilotScore.timestamp),
+        },
+      });
+
+      client.emit('score:update', autopilotScore);
+    }
   }
 }
