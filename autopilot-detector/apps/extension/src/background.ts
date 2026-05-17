@@ -80,7 +80,7 @@ const connectWebSocket = async () => {
   }
 
   // Implement exponential backoff + jitter for reconnection
-  socket = io((${import.meta.env.VITE_WS_URL} || `${import.meta.env.VITE_WS_URL || "ws://localhost:3001"}`), {
+  socket = io(import.meta.env.VITE_WS_URL || "ws://localhost:3001", {
     transports: ["websocket"], // crucial for MV3 Service Workers
     auth: { token },
     reconnection: true,
