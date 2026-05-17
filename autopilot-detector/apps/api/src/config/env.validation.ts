@@ -1,4 +1,9 @@
-const requiredKeys = ['DATABASE_URL', 'JWT_SECRET', 'REDIS_URL', 'PORT'] as const;
+const requiredKeys = [
+  'DATABASE_URL',
+  'JWT_SECRET',
+  'REDIS_URL',
+  'PORT',
+] as const;
 
 export function validateEnv(env: Record<string, string | undefined>) {
   if (process.env.NODE_ENV === 'test') {

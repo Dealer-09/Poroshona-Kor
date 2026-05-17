@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
@@ -42,7 +46,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const passwordMatches = await argon2.verify(user.password, loginDto.password);
+    const passwordMatches = await argon2.verify(
+      user.password,
+      loginDto.password,
+    );
 
     if (!passwordMatches) {
       throw new UnauthorizedException('Invalid credentials');

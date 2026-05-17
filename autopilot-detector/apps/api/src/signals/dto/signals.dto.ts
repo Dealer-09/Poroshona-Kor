@@ -1,4 +1,12 @@
-import { IsNumber, IsString, IsNotEmpty, IsISO8601, ValidateNested, IsArray, IsEnum } from 'class-validator';
+import {
+  IsNumber,
+  IsString,
+  IsNotEmpty,
+  IsISO8601,
+  ValidateNested,
+  IsArray,
+  IsEnum,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { BehavioralSignal, AppIntent } from '@autopilot/shared';
 
