@@ -21,6 +21,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const storedToken = localStorage.getItem("access_token");
     if (storedToken) {
       setToken(storedToken);
+      // Broadcast to Chrome Extension Content Script
+      window.postMessage({ type: "AUTOPILOT_AUTH_TOKEN", token: storedToken }, "*");
     }
   }, []);
 
@@ -29,6 +31,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("access_token", newToken);
     // Also set as cookie for Next.js middleware to read
     document.cookie = `access_token=${newToken}; path=/; max-age=${60 * 60 * 24 * 7}`;
+    
+    // Broadcast to Chrome Extension Content Script immediately
+    window.postMessage({ type: "AUTOPILOT_AUTH_TOKEN", token: newToken }, "*");
+    
     router.push("/dashboard");
   };
 

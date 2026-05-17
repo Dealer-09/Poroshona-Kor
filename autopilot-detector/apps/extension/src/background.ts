@@ -155,6 +155,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     });
   }
   
+  if (message.type === "SAVE_AUTH_TOKEN") {
+    console.log("Saving Auth Token from Dashboard...");
+    chrome.storage.local.set({ accessToken: message.payload }, () => {
+      // Reconnect WebSockets with the new token
+      connectWebSocket();
+    });
+    return;
+  }
+
   // Handle Session Start from Popup
   if (message.type === "START_SESSION" && socket?.connected) {
     socket.emit("session:start", { 

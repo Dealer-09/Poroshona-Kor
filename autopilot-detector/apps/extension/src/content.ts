@@ -140,6 +140,26 @@ function sendMetadata() {
 let lastUrl = window.location.href;
 setTimeout(sendMetadata, 1000); // Small delay to let document load fully
 
+// --- AUTHENTICATION BRIDGE ---
+window.addEventListener("message", (event) => {
+  // Only accept messages from the dashboard
+  if (
+    event.origin === "http://localhost:3000" || 
+    event.origin.includes("vercel.app")
+  ) {
+    if (event.data?.type === "AUTOPILOT_AUTH_TOKEN" && event.data?.token) {
+      try {
+        chrome.runtime.sendMessage({
+          type: "SAVE_AUTH_TOKEN",
+          payload: event.data.token,
+        }).catch(() => console.debug("Auth bridge: Background worker busy"));
+      } catch (e) {
+        console.debug("Auth bridge: Extension context invalidated");
+      }
+    }
+  }
+});
+
 // --- CLEANUP ---
 window.addEventListener("beforeunload", () => {
   window.removeEventListener("scroll", handleScroll);
