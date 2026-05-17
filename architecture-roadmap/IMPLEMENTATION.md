@@ -725,6 +725,34 @@ Update manifest.json version from package.json version automatically."
 
 ---
 
+## Phase 9 — Contextual Intent & URL Tracking (Future Enhancement)
+> Goal: Make the Autopilot Score context-aware by cross-referencing real-time active tab URLs with the user's declared session intent.
+
+### Task 9.1 — Extension URL Extraction
+```
+Prompt to AI:
+"Update apps/extension/src/background.ts to track the active tab URL.
+- Require 'activeTab' or 'tabs' permissions in manifest.json.
+- On chrome.tabs.onActivated and chrome.tabs.onUpdated, grab the current URL domain.
+- Strip parameters and paths to ensure privacy (e.g., 'youtube.com').
+- Append this `activeDomain` string to the BehavioralSignal payload sent to the API."
+```
+**Commit:** `feat(extension): extract and broadcast active tab domain`
+
+### Task 9.2 — Context-Aware Heuristics
+```
+Prompt to AI:
+"Update AutopilotScoreService in apps/api to accept and parse activeDomain.
+- Fetch the user's current session to check the `declaredIntent` (e.g., 'STUDY', 'TUTORIAL').
+- Apply penalty modifiers based on the intent context:
+  - If intent == 'STUDY' and domain == 'youtube.com', heavily penalize passive time.
+  - If intent == 'TUTORIAL' and domain == 'youtube.com', allow high passive time without penalizing the score.
+- Update the scoring algorithm to factor in this context multiplier."
+```
+**Commit:** `feat(api): context-aware heuristic scoring based on intent and domain`
+
+---
+
 ## Daily Build Checklist
 
 Use this every day before starting a new task:
@@ -807,4 +835,5 @@ MODEL_PATH=models/autopilot_classifier.joblib
 | 6 | ML Microservice (after real data) | 2–3 days |
 | 7 | Testing | 2 days |
 | 8 | Deployment | 1–2 days |
-| **Total** | | **~18–25 days** |
+| 9 | Contextual Intent & URL Tracking | 1–2 days |
+| **Total** | | **~19–27 days** |
