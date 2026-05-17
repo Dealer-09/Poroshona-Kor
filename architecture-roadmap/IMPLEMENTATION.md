@@ -79,15 +79,16 @@ Add .eslintrc and .prettierrc at repo root."
 ```
 Prompt to AI:
 "Scaffold a NestJS app in apps/api using @nestjs/cli.
-Modules to create: AppModule, SignalsModule, SessionsModule.
-Auth: use Clerk (@clerk/clerk-sdk-node) — NOT @nestjs/jwt or passport.
-  Add ClerkAuthGuard that validates the Clerk session token from the
+Modules to create: AppModule, AuthModule, SignalsModule, SessionsModule.
+Auth: standard Passport-JWT strategy with Argon2id password hashing.
+  Add JwtAuthGuard that validates the JWT access token from the
   Authorization header on all protected routes.
-Install: @clerk/clerk-sdk-node, @nestjs/websockets, @nestjs/platform-socket.io, socket.io.
-Add .env.example with: DATABASE_URL, CLERK_SECRET_KEY, REDIS_URL, PORT.
+Install: @nestjs/config, @nestjs/jwt, @nestjs/passport, passport-jwt, argon2,
+  @nestjs/websockets, @nestjs/platform-socket.io, socket.io, class-validator, class-transformer.
+Add .env.example with: DATABASE_URL, DIRECT_URL, JWT_SECRET, REDIS_URL, PORT.
 Configure ConfigModule globally with validation."
 ```
-**Commit:** `feat(api): scaffold nestjs with clerk auth and modules`
+**Commit:** `feat(api): scaffold nestjs with modules and deps`
 
 ---
 
@@ -110,10 +111,16 @@ Run: prisma migrate dev."
 
 ---
 
-### ~~Task 1.3 — JWT Auth (register + login)~~
-> **Removed.** Clerk handles auth entirely via `@clerk/clerk-sdk-node`.
-> No custom register/login endpoints needed. No bcrypt, no JWT_SECRET, no passport strategy.
-> ClerkAuthGuard (added in Task 1.1) protects all routes automatically.
+### Task 1.3 — JWT Auth (register + login)
+```
+Prompt to AI:
+"Implement JWT auth in NestJS AuthModule.
+POST /auth/register — hash password with argon2, create user, return JWT.
+POST /auth/login — validate credentials with argon2, return JWT.
+JwtAuthGuard using passport-jwt strategy.
+Add Refresh Token endpoint with rotation for security."
+```
+**Commit:** `feat(api): custom jwt auth with argon2 hashing and token rotation`
 
 ---
 
@@ -128,7 +135,7 @@ Events to handle:
   oldest 20 entries first (LTRIM) to prevent unbounded growth under heavy scroll.
 - 'session:start' — creates Session record in Postgres, emits 'session:created'.
 - 'session:end' — closes session, emits 'session:ended'.
-Authenticate WebSocket connections using Clerk session token from handshake auth header.
+Authenticate WebSocket connections using standard JWT access token from handshake auth header.
 Import SignalsModule types from packages/shared."
 ```
 **Commit:** `feat(api): websocket gateway with signal ingestion and backpressure guard`
@@ -222,7 +229,7 @@ Tab tracking:
 - Detect rapid tab switching: >5 switches in 60 seconds
 WebSocket connection:
 - Connect to NestJS WebSocket on extension install/startup
-- Read Clerk session token from chrome.storage.local
+- Read JWT access token from chrome.storage.local
 - Receive signal batches from content script via chrome.runtime.onMessage
 - Emit 'signal:batch' to server with merged signals (content + tab data)
 - Reconnect on disconnect with exponential backoff (max 30s) + ±20% random jitter
@@ -334,23 +341,21 @@ Emit 'intervention:trigger' to client via WebSocket after generating message."
 ## Phase 4 — Next.js Dashboard
 > Goal: A reflection dashboard showing live score, drift patterns, and AI chat.
 
-### Task 4.1 — Next.js 15 scaffold + Clerk auth
+### Task 4.1 — Next.js 15 scaffold + Custom JWT Auth
 ```
 Prompt to AI:
 "Scaffold Next.js 15 app in apps/web with App Router.
-Install: @clerk/nextjs, @supabase/supabase-js, tailwindcss, framer-motion,
+Install: @supabase/supabase-js, tailwindcss, framer-motion,
 recharts, lucide-react, socket.io-client.
-Configure Clerk auth:
-  - Add ClerkProvider to root layout.tsx
-  - Add middleware.ts using clerkMiddleware() to protect all routes except /sign-in
-  - Use currentUser() or auth() from @clerk/nextjs/server in server components
-  - Pass Clerk session token to NestJS API calls via getToken()
-  Do NOT use next-auth — Clerk replaces it entirely.
+Configure custom JWT auth flow:
+  - Create a custom React AuthContext to handle user login state and store the token in cookies/localStorage.
+  - Add a custom middleware.ts to protect all dashboard routes, redirecting unauthenticated users to /login.
+  - Pass the JWT access token in the Authorization: Bearer header for all NestJS API calls.
 Tailwind config with custom colors matching the product (dark theme preferred).
 Layout.tsx with sidebar navigation:
   Dashboard | Sessions | Interventions | AI Reflection"
 ```
-**Commit:** `feat(web): scaffold next.js 15 with clerk auth and layout`
+**Commit:** `feat(web): scaffold next.js 15 with jwt auth and layout`
 
 ---
 
@@ -744,7 +749,7 @@ Use this every day before starting a new task:
 |---|---|---|
 | Monorepo | Turborepo + pnpm | Shared types, single dev command, selective rebuilds |
 | Backend | NestJS | TypeScript-native, WebSocket built-in, modular |
-| Auth | Clerk (@clerk/clerk-sdk-node + @clerk/nextjs) | No JWT boilerplate, production-grade out of the box |
+| Auth | JWT (passport-jwt + argon2) | Custom, lightweight, secure, and self-hosted with no external service lock-in |
 | Queue | BullMQ + Redis | Async AI calls, retry logic, dashboard |
 | Database | Supabase (Postgres) | pgvector built-in, auth, realtime, free tier |
 | Vector DB | pgvector (768d) | Gemini-compatible dims, free, inside Supabase |
@@ -765,8 +770,9 @@ Use this every day before starting a new task:
 ### apps/api (.env)
 ```
 DATABASE_URL=postgresql://...
+DIRECT_URL=postgresql://...
 TEST_DATABASE_URL=postgresql://...
-CLERK_SECRET_KEY=sk_live_...
+JWT_SECRET=super-secret-key-change-in-production
 REDIS_URL=redis://localhost:6379
 ANTHROPIC_API_KEY=sk-ant-...
 GEMINI_API_KEY=...
@@ -776,8 +782,6 @@ PORT=3001
 
 ### apps/web (.env.local)
 ```
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
-CLERK_SECRET_KEY=sk_live_...
 NEXT_PUBLIC_API_URL=http://localhost:3001
 NEXT_PUBLIC_WS_URL=ws://localhost:3001
 ```
