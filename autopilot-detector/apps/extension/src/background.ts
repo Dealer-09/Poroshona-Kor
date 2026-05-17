@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { io, Socket } from "socket.io-client";
 import { BehavioralSignal } from "@autopilot/shared";
 
