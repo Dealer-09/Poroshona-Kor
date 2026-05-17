@@ -74,7 +74,18 @@ export class InterventionService {
     userPrompt += `Past similar sessions led to: ${pastOutcomes || 'No past sessions'}.\n`;
     userPrompt += `Generate a contextual nudge.`;
 
-    // 5. Call Groq API
+    // 5. Determine type and best Groq model dynamically
+    let type = InterventionType.NUDGE;
+    let modelToUse = 'llama-3.1-8b-instant'; // Ultra-fast default model
+
+    if (score > 85) {
+      type = InterventionType.REFLECTION;
+      modelToUse = 'llama-3.3-70b-versatile'; // Use high-reasoning 70B model for deep cognitive breaks!
+    } else if (score > 75) {
+      type = InterventionType.PAUSE;
+    }
+
+    // 6. Call Groq API
     let message = 'You seem to be scrolling aimlessly. Time for a quick break?';
     try {
       const chatCompletion = await this.groq.chat.completions.create({
@@ -82,7 +93,7 @@ export class InterventionService {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        model: 'llama-3.1-8b-instant',
+        model: modelToUse,
         max_tokens: 150,
       });
 
@@ -90,15 +101,7 @@ export class InterventionService {
         message = chatCompletion.choices[0].message.content;
       }
     } catch (error) {
-      this.logger.error('Groq API failed, using fallback message', error);
-    }
-
-    // Determine type
-    let type = InterventionType.NUDGE;
-    if (score > 85) {
-      type = InterventionType.REFLECTION;
-    } else if (score > 75) {
-      type = InterventionType.PAUSE;
+      this.logger.error(`Groq API failed using model ${modelToUse}, using fallback message`, error);
     }
 
     // 6. Save to PostgreSQL
