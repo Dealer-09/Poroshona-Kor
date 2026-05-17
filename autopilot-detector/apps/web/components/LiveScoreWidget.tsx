@@ -57,41 +57,58 @@ export function LiveScoreWidget() {
     <div className="flex flex-col md:flex-row items-center w-full gap-8">
       {/* Circular Gauge */}
       <div className="relative flex justify-center items-center">
-        <svg width="300" height="300" className="transform -rotate-90 drop-shadow-[4px_4px_0_rgba(0,0,0,1)]">
-          {/* Background circle */}
-          <circle
-            cx="150"
-            cy="150"
-            r="120"
-            stroke="black"
-            strokeWidth="24"
-            fill="transparent"
+        <svg width="300" height="300" className="transform -rotate-90">
+          {/* Manual Brutalist Drop Shadow (solid block shadow) */}
+          <circle cx="154" cy="154" r="140" fill="black" />
+          
+          {/* Main Background Circle */}
+          <circle cx="150" cy="150" r="140" fill="#facc15" stroke="black" strokeWidth="8" />
+
+          {/* Dashed outer ring - calculated to fit perfectly (Circumference ~879.6, divided by 44 dashes = 19.99) */}
+          <circle 
+            cx="150" 
+            cy="150" 
+            r="130" 
+            stroke="black" 
+            strokeWidth="6" 
+            fill="transparent" 
+            strokeDasharray="10 9.99" 
           />
+
+          {/* White track for the progress bar */}
           <circle
             cx="150"
             cy="150"
-            r="120"
+            r="105"
             stroke="white"
             strokeWidth="16"
             fill="transparent"
+            stroke="black"
           />
+          <circle
+            cx="150"
+            cy="150"
+            r="105"
+            stroke="white"
+            strokeWidth="12"
+            fill="transparent"
+          />
+          
           {/* Animated progress circle */}
           <motion.circle
             cx="150"
             cy="150"
-            r="120"
+            r="105"
             stroke={strokeColor}
-            strokeWidth="16"
+            strokeWidth="12"
             fill="transparent"
             strokeLinecap="butt"
-            initial={{ strokeDashoffset: circumference }}
-            animate={{ strokeDashoffset }}
+            initial={{ strokeDashoffset: 2 * Math.PI * 105 }}
+            animate={{ strokeDashoffset: (2 * Math.PI * 105) - (data.score / 100) * (2 * Math.PI * 105) }}
             transition={{ type: "spring", stiffness: 50, damping: 15 }}
-            style={{ strokeDasharray: circumference }}
+            style={{ strokeDasharray: 2 * Math.PI * 105 }}
             className="transition-colors duration-500"
           />
-          {/* Brutalist outer ring */}
-          <circle cx="150" cy="150" r="140" stroke="black" strokeWidth="8" fill="transparent" strokeDasharray="10 10" />
         </svg>
 
         <div className="absolute flex flex-col items-center justify-center">

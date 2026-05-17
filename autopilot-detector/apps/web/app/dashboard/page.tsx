@@ -1,6 +1,31 @@
 import { LiveScoreWidget } from "@/components/LiveScoreWidget";
+import { DriftTimeline } from "@/components/DriftTimeline";
+import { cookies } from "next/headers";
 
-export default function DashboardPage() {
+async function getCurrentSessionId() {
+  const token = (await cookies()).get("access_token")?.value;
+  if (!token) return null;
+
+  try {
+    const res = await fetch("http://localhost:3001/sessions/current", {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store"
+    });
+    if (res.ok) {
+      const text = await res.text();
+      if (!text) return null;
+      const session = JSON.parse(text);
+      return session?.id || null;
+    }
+  } catch (e) {
+    console.error("Failed to fetch session:", e);
+  }
+  return null;
+}
+
+export default async function DashboardPage() {
+  const sessionId = await getCurrentSessionId();
+
   return (
     <div>
       <div className="mb-8">
@@ -32,6 +57,20 @@ export default function DashboardPage() {
             <button className="neo-btn-accent w-full text-lg">RUN DIAGNOSTICS</button>
           </div>
         </div>
+      </div>
+
+      <div className="mt-8">
+        {sessionId ? (
+          <div className="h-[400px]">
+            <DriftTimeline sessionId={sessionId} />
+          </div>
+        ) : (
+          <div className="neo-card p-6 bg-white min-h-[300px] flex items-center justify-center">
+            <p className="font-bold text-xl uppercase bg-yellow-300 px-4 py-2 border-4 border-black transform -rotate-1 shadow-neo">
+              Start a session in the extension to view timeline
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
