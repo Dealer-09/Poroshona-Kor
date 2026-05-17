@@ -14,6 +14,8 @@ import { RedisService } from '../redis/redis.service';
 import { UsePipes, ValidationPipe, ParseArrayPipe } from '@nestjs/common';
 import { StartSessionDto, BehavioralSignalDto } from './dto/signals.dto';
 import { AutopilotScoreService } from './autopilot-score.service';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 interface JwtPayload {
   sub: string;
@@ -32,6 +34,7 @@ export class SignalsGateway
     private prisma: PrismaService,
     private redisService: RedisService,
     private scoreService: AutopilotScoreService,
+    @InjectQueue('ai-intervention') private aiQueue: Queue,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -148,6 +151,15 @@ export class SignalsGateway
       });
 
       client.emit('score:update', autopilotScore);
+
+      // Trigger AI Intervention job if score breaches the NUDGE threshold
+      if (autopilotScore.score > 60) {
+        await this.aiQueue.add('generate-intervention', {
+          sessionId,
+          score: autopilotScore.score,
+          signals: parsedSignals,
+        });
+      }
     }
   }
 }
