@@ -88,12 +88,16 @@ intervalId = window.setInterval(() => {
   passiveTimeAcc = 0;
   activeTimeAcc = 0;
 
-  // Batching: emit every 10 signals (~20 seconds)
-  if (signalBatch.length >= 10) {
-    chrome.runtime.sendMessage({
-      type: "SIGNAL_BATCH",
-      payload: signalBatch,
-    });
+  // Batching: emit every 2 signals (~4 seconds) for instant testing!
+  if (signalBatch.length >= 2) {
+    try {
+      chrome.runtime.sendMessage({
+        type: "SIGNAL_BATCH",
+        payload: signalBatch,
+      }).catch(() => console.debug("Background worker sleeping or busy"));
+    } catch (e) {
+      console.debug("Extension context invalidated. Please refresh the page.");
+    }
     signalBatch = [];
   }
 }, TICK_RATE_MS);

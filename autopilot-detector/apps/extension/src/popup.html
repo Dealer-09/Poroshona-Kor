@@ -3,26 +3,229 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Autopilot Detector</title>
+    <title>Autopilot</title>
     <style>
+      :root {
+        --bg-color: #0f1115;
+        --card-bg: rgba(255, 255, 255, 0.05);
+        --text-primary: #ffffff;
+        --text-secondary: #8b949e;
+        --accent-blue: #3b82f6;
+        --accent-purple: #8b5cf6;
+        --good-color: #10b981;
+        --warn-color: #f59e0b;
+        --danger-color: #ef4444;
+      }
+      
       body {
-        width: 300px;
-        height: 200px;
+        width: 320px;
+        min-height: 400px;
         margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-primary);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      /* Animated Gradient Header */
+      .header-bar {
+        height: 4px;
+        width: 100%;
+        background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple), var(--accent-blue));
+        background-size: 200% 200%;
+        animation: gradient-shift 3s ease infinite;
+      }
+
+      @keyframes gradient-shift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+
+      .container {
+        padding: 24px;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+
+      h1 {
+        font-size: 20px;
+        font-weight: 600;
+        margin: 0 0 8px 0;
+        letter-spacing: -0.5px;
+      }
+
+      p.subtitle {
+        color: var(--text-secondary);
+        font-size: 13px;
+        margin: 0 0 24px 0;
+        line-height: 1.5;
+      }
+
+      /* Views */
+      .view {
+        display: none;
+        flex-direction: column;
+        flex: 1;
+        animation: fade-in 0.3s ease forwards;
+      }
+      
+      .view.active {
+        display: flex;
+      }
+
+      @keyframes fade-in {
+        from { opacity: 0; transform: translateY(5px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      /* Intent Buttons */
+      .intent-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      button.intent-btn {
+        background: var(--card-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: var(--text-primary);
+        padding: 12px 16px;
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 500;
+        text-align: left;
+        cursor: pointer;
+        transition: all 0.2s ease;
         display: flex;
         align-items: center;
+        justify-content: space-between;
+        backdrop-filter: blur(10px);
+      }
+
+      button.intent-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        transform: translateY(-2px);
+        border-color: rgba(255, 255, 255, 0.2);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      }
+
+      /* Dashboard */
+      .score-display {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
         justify-content: center;
-        font-family: system-ui, sans-serif;
-        background-color: #1a1a1a;
-        color: white;
+      }
+
+      .score-circle {
+        width: 140px;
+        height: 140px;
+        border-radius: 50%;
+        background: var(--card-bg);
+        border: 4px solid var(--text-secondary);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 24px;
+        position: relative;
+        transition: border-color 0.5s ease, box-shadow 0.5s ease;
+      }
+
+      .score-value {
+        font-size: 48px;
+        font-weight: 700;
+        line-height: 1;
+      }
+
+      .score-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .status-text {
+        font-size: 16px;
+        font-weight: 500;
+        text-align: center;
+        transition: color 0.5s ease;
+      }
+
+      /* Score states */
+      .score-good { border-color: var(--good-color); box-shadow: 0 0 20px rgba(16, 185, 129, 0.2); }
+      .text-good { color: var(--good-color); }
+      
+      .score-warn { border-color: var(--warn-color); box-shadow: 0 0 20px rgba(245, 158, 11, 0.2); }
+      .text-warn { color: var(--warn-color); }
+      
+      .score-danger { border-color: var(--danger-color); box-shadow: 0 0 20px rgba(239, 68, 68, 0.2); }
+      .text-danger { color: var(--danger-color); }
+
+      /* Footer */
+      .footer {
+        margin-top: auto;
+        padding-top: 16px;
+        text-align: center;
+      }
+      
+      .reset-btn {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        font-size: 12px;
+        cursor: pointer;
+        text-decoration: underline;
+      }
+      
+      .reset-btn:hover {
+        color: var(--text-primary);
       }
     </style>
   </head>
   <body>
-    <div id="app">
-      <h1>Autopilot</h1>
-      <p id="status">Monitoring active...</p>
+    <div class="header-bar"></div>
+    
+    <div class="container">
+      <!-- VIEW: INTENT SELECTION -->
+      <div id="view-intent" class="view active">
+        <h1>Welcome Back</h1>
+        <p class="subtitle">Set your primary intent for this session so we can calibrate your autopilot detector.</p>
+        
+        <div class="intent-grid">
+          <button class="intent-btn" data-intent="STUDY">Study / Deep Work <span>📚</span></button>
+          <button class="intent-btn" data-intent="TUTORIAL">Learning / Tutorial <span>🧠</span></button>
+          <button class="intent-btn" data-intent="ENTERTAINMENT">Entertainment <span>🎬</span></button>
+          <button class="intent-btn" data-intent="RELAXATION">Relaxation <span>🌿</span></button>
+          <button class="intent-btn" data-intent="AVOIDING_WORK">Avoiding Work <span>👀</span></button>
+        </div>
+      </div>
+
+      <!-- VIEW: LIVE DASHBOARD -->
+      <div id="view-dashboard" class="view">
+        <h1>Live Dashboard</h1>
+        <p class="subtitle" id="intent-display">Intent: <span id="current-intent">None</span></p>
+        
+        <div class="score-display">
+          <div class="score-circle" id="score-ring">
+            <div class="score-value" id="score-value">--</div>
+            <div class="score-label">Score</div>
+          </div>
+          <div class="status-text" id="status-text">Calculating baseline...</div>
+        </div>
+        
+        <div class="footer">
+          <button class="reset-btn" id="reset-intent-btn">Change Intent</button>
+        </div>
+      </div>
     </div>
+
     <script type="module" src="./popup.ts"></script>
   </body>
 </html>

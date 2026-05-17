@@ -76,6 +76,7 @@ export class SignalsGateway
       },
     });
 
+    console.log(`🚀 New Session Started! Intent: ${payload.declaredIntent}`);
     client.emit('session:created', { sessionId: session.id });
   }
 
@@ -132,7 +133,8 @@ export class SignalsGateway
     const batchCountKey = `session:${sessionId}:batchCount`;
     const batchCount = await redis.incr(batchCountKey);
 
-    if (batchCount % 10 === 0) {
+    // Calculate score on EVERY batch for instant testing!
+    if (batchCount % 1 === 0) {
       const rawSignals = await redis.lrange(key, 0, -1);
       const parsedSignals = rawSignals.map((s) => JSON.parse(s));
 
@@ -151,6 +153,7 @@ export class SignalsGateway
       });
 
       client.emit('score:update', autopilotScore);
+      console.log('📈 LIVE SCORE COMPUTED:', JSON.stringify(autopilotScore, null, 2));
 
       // Trigger AI Intervention job if score breaches the NUDGE threshold
       if (autopilotScore.score > 60) {

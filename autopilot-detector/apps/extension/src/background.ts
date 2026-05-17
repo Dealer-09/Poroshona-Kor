@@ -89,11 +89,8 @@ const connectWebSocket = async () => {
 
   socket.on("connect", () => {
     console.log("WebSocket connected to API.", socket?.id);
-    
-    // Request a session start if we don't have one
-    if (!currentSessionId) {
-      socket?.emit("session:start", { userId: "dev_user_1" });
-    }
+    // Note: We no longer auto-start the session here.
+    // The Popup UI will emit START_SESSION when the user selects an intent.
   });
 
   socket.on("session:created", (data: { sessionId: string }) => {
@@ -103,7 +100,8 @@ const connectWebSocket = async () => {
 
   socket.on("score:update", (scoreData) => {
     console.log("Received new Autopilot Score:", scoreData);
-    // In a future task, we might update the badge or trigger a popup
+    // Broadcast score to the popup UI
+    chrome.runtime.sendMessage({ type: "SCORE_UPDATE", payload: scoreData }).catch(() => {});
   });
 
   socket.on("disconnect", (reason) => {
@@ -115,19 +113,35 @@ connectWebSocket();
 
 // --- MESSAGE RELAY ---
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  // Handle Signals from Content Script
   if (message.type === "SIGNAL_BATCH" && currentSessionId && socket?.connected) {
     const rawSignals: Partial<BehavioralSignal>[] = message.payload;
 
-    // Map through the content script's partial signals and inject background context
     const completeSignals: BehavioralSignal[] = rawSignals.map((sig) => ({
       ...sig,
       sessionId: currentSessionId!,
       userId: "dev_user_1",
-      tabSwitchCount: tabSwitchCount, // Inject current tabSwitchCount
+      tabSwitchCount: tabSwitchCount,
     } as BehavioralSignal));
 
     socket.emit("signal:batch", completeSignals);
   }
+  
+  // Handle Session Start from Popup
+  if (message.type === "START_SESSION" && socket?.connected) {
+    socket.emit("session:start", { 
+      userId: "dev_user_1",
+      appOpened: "Chrome Browser",
+      declaredIntent: message.payload.intent
+    });
+  }
+
+  // Handle Session End from Popup
+  if (message.type === "END_SESSION" && currentSessionId && socket?.connected) {
+    socket.emit("session:end", { sessionId: currentSessionId });
+    currentSessionId = null; // Clear local session
+  }
+
   sendResponse({ status: "ok" });
 });
 
