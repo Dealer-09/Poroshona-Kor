@@ -12,7 +12,7 @@ export function CoachDailySummary() {
   useEffect(() => {
     if (!token) return;
 
-    fetch("http://localhost:3001/ai/daily-summary", {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/ai/daily-summary`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())

@@ -10,7 +10,7 @@ export function useSocket(): { socket: Socket | null; isConnected: boolean } {
   useEffect(() => {
     if (!token) return;
 
-    const socketInstance = io("ws://localhost:3001", {
+    const socketInstance = io(process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001", {
       transports: ["websocket"],
       auth: { token },
       reconnection: true,

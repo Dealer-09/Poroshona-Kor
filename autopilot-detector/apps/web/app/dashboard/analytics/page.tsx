@@ -15,7 +15,7 @@ async function getHeatmapData(): Promise<HeatmapCell[]> {
   if (!token) return [];
 
   try {
-    const res = await fetch("http://localhost:3001/analytics/heatmap", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/analytics/heatmap`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });

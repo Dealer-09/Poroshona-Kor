@@ -7,7 +7,7 @@ async function getCurrentSessionId() {
   if (!token) return null;
 
   try {
-    const res = await fetch("http://localhost:3001/sessions/current", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/sessions/current`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store"
     });

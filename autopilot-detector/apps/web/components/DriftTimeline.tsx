@@ -23,7 +23,7 @@ export function DriftTimeline({ sessionId }: DriftTimelineProps) {
 
     const fetchScores = async () => {
       try {
-        const res = await fetch(`http://localhost:3001/sessions/${sessionId}/scores`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/sessions/${sessionId}/scores`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

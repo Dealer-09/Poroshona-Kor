@@ -18,7 +18,7 @@ async function getSessions(): Promise<SessionData[]> {
   if (!token) return [];
 
   try {
-    const res = await fetch("http://localhost:3001/sessions", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/sessions`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
