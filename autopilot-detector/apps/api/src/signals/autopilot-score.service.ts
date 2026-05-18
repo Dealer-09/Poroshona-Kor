@@ -153,19 +153,54 @@ export class AutopilotScoreService {
         }
       }
     } else if (intent === AppIntent.TUTORIAL) {
-      // Watching videos is okay
-      if (isEntertainment) {
-        passiveRatio = passiveRatio * 0.2;
-      }
+      const contentType = classification?.contentType;
+      const isRelevant = classification?.isRelevantToIntent ?? false;
 
-      doomscrollProbability =
-        passiveRatio * 0.75 +
-        focusFragmentation * 0.25 +
-        scrollVelocityNormalized * 0.3;
-
-      // Penalize social media
-      if (isSocial) {
-        doomscrollProbability = doomscrollProbability * 1.3;
+      if (contentType === 'tutorial' || contentType === 'lecture') {
+        // Watching a relevant tutorial/lecture video — fully forgiven
+        passiveRatio = passiveRatio * 0.15;
+        doomscrollProbability =
+          passiveRatio * 0.3 +
+          focusFragmentation * 0.3 +
+          scrollVelocityNormalized * 0.3;
+      } else if (contentType === 'gaming' || contentType === 'entertainment') {
+        // Off-task entertainment during TUTORIAL — heavy penalty!
+        doomscrollProbability =
+          passiveRatio * 0.75 +
+          focusFragmentation * 0.25 +
+          scrollVelocityNormalized * 0.3;
+        doomscrollProbability = doomscrollProbability * 1.6 + 0.25;
+      } else if (contentType === 'social') {
+        // Social media feed during tutorial — heavy penalty
+        doomscrollProbability =
+          passiveRatio * 0.75 +
+          focusFragmentation * 0.25 +
+          scrollVelocityNormalized * 0.3;
+        doomscrollProbability = doomscrollProbability * 1.5 + 0.2;
+      } else {
+        // Unknown content type — fall back to domain checks
+        if (isSocial) {
+          doomscrollProbability =
+            (passiveRatio * 0.75 +
+              focusFragmentation * 0.25 +
+              scrollVelocityNormalized * 0.3) *
+              1.3 +
+            0.15;
+        } else if (isEntertainment && !isRelevant) {
+          // General entertainment video (not classified as tutorial)
+          doomscrollProbability =
+            (passiveRatio * 0.75 +
+              focusFragmentation * 0.25 +
+              scrollVelocityNormalized * 0.3) *
+              1.5 +
+            0.2;
+        } else {
+          // If it is a generic educational domain or unknown, let it pass
+          doomscrollProbability =
+            passiveRatio * 0.75 +
+            focusFragmentation * 0.25 +
+            scrollVelocityNormalized * 0.3;
+        }
       }
     } else if (intent === AppIntent.ENTERTAINMENT) {
       // Staring passively is fine for entertainment
