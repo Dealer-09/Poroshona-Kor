@@ -4,6 +4,40 @@ import { BehavioralSignal } from "@autopilot/shared";
 
 console.log("Autopilot Detector Background Service Worker running.");
 
+// --- AUTO-INJECT CONTENT SCRIPTS ON RELOAD ---
+chrome.runtime.onInstalled.addListener(() => {
+  console.log("🚨 [AUTO-INJECT] Extension reloaded. Force-connecting open tabs...");
+  chrome.tabs.query({ windowType: "normal" }, (tabs) => {
+    tabs.forEach((tab) => {
+      const tabId = tab.id;
+      const tabUrl = tab.url;
+      // Exclude special browser schemes and dashboards
+      if (
+        tabId &&
+        tabUrl &&
+        !tabUrl.startsWith("chrome:") &&
+        !tabUrl.startsWith("edge:") &&
+        !tabUrl.startsWith("about:") &&
+        !tabUrl.includes("localhost") &&
+        !tabUrl.includes("vercel")
+      ) {
+        chrome.scripting.executeScript({
+          target: { tabId: tabId },
+          files: ["src/content.js"]
+        }).then(() => {
+          console.log("✅ [AUTO-INJECT] Successfully connected content script to tab:", tabId, tabUrl);
+          chrome.scripting.insertCSS({
+            target: { tabId: tabId },
+            files: ["src/content.css"]
+          }).catch((err) => console.log("❌ [AUTO-INJECT] Failed to inject CSS:", tabId, err.message));
+        }).catch((err) => {
+          console.log("⚠️ [AUTO-INJECT] Skipping tab injection:", tabId, tabUrl, err.message);
+        });
+      }
+    });
+  });
+});
+
 // --- TAB TRACKING STATE ---
 let tabSwitchCount = 0;
 let rapidSwitchWindowCount = 0;
@@ -128,9 +162,10 @@ const connectWebSocket = async () => {
         priority: 2,
       });
     } else if (intervention.type === "PAUSE") {
-      chrome.tabs.query({ active: true }, (tabs) => {
+      chrome.tabs.query({ active: true, windowType: "normal" }, (tabs) => {
+        console.log("🚨 [DIAGNOSTIC] Found " + tabs.length + " tabs for PAUSE");
         tabs.forEach((tab) => {
-          if (tab.id) {
+          if (tab.id && (!tab.url || (!tab.url.includes("localhost") && !tab.url.includes("vercel")))) {
             chrome.tabs.sendMessage(tab.id, {
               type: "TRIGGER_PAUSE_OVERLAY",
               payload: {
@@ -138,14 +173,16 @@ const connectWebSocket = async () => {
                 sessionId: currentSessionId,
                 intent: currentIntent
               }
-            }).catch((err) => console.debug("Failed to send PAUSE overlay message to tab:", tab.id, err));
+            }).then(() => console.log("✅ PAUSE sent successfully to tab:", tab.id, tab.url))
+              .catch((err) => console.log("❌ PAUSE failed for tab:", tab.id, tab.url, err.message));
           }
         });
       });
     } else if (intervention.type === "REFLECTION") {
-      chrome.tabs.query({ active: true }, (tabs) => {
+      chrome.tabs.query({ active: true, windowType: "normal" }, (tabs) => {
+        console.log("🚨 [DIAGNOSTIC] Found " + tabs.length + " tabs for REFLECTION");
         tabs.forEach((tab) => {
-          if (tab.id) {
+          if (tab.id && (!tab.url || (!tab.url.includes("localhost") && !tab.url.includes("vercel")))) {
             chrome.tabs.sendMessage(tab.id, {
               type: "TRIGGER_REFLECTION_OVERLAY",
               payload: {
@@ -153,7 +190,8 @@ const connectWebSocket = async () => {
                 sessionId: currentSessionId,
                 intent: currentIntent
               }
-            }).catch((err) => console.debug("Failed to send REFLECTION overlay message to tab:", tab.id, err));
+            }).then(() => console.log("✅ REFLECTION sent successfully to tab:", tab.id, tab.url))
+              .catch((err) => console.log("❌ REFLECTION failed for tab:", tab.id, tab.url, err.message));
           }
         });
       });

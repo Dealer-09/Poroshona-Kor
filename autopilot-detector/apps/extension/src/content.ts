@@ -160,6 +160,113 @@ window.addEventListener("message", (event) => {
   }
 });
 
+// --- INTERVENTION OVERLAYS ---
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  console.log("📥 Content Script received message from background:", message);
+  if (message.type === "TRIGGER_PAUSE_OVERLAY") {
+    createInterventionOverlay(message.payload.message, "PAUSE", message.payload.sessionId, message.payload.intent);
+  } else if (message.type === "TRIGGER_REFLECTION_OVERLAY") {
+    createInterventionOverlay(message.payload.message, "REFLECTION", message.payload.sessionId, message.payload.intent);
+  }
+  sendResponse({ status: "overlay_received" });
+});
+
+function createInterventionOverlay(messageText: string, type: "PAUSE" | "REFLECTION", sessionId: string, intent?: string) {
+  // Check if an overlay already exists
+  if (document.getElementById("autopilot-intervention-overlay")) {
+    return;
+  }
+
+  // Create overlay container
+  const overlay = document.createElement("div");
+  overlay.id = "autopilot-intervention-overlay";
+
+  const container = document.createElement("div");
+  container.className = "autopilot-container";
+
+  // Pulse icon
+  const iconPulse = document.createElement("div");
+  iconPulse.className = "autopilot-icon-pulse";
+  const innerIcon = document.createElement("span");
+  innerIcon.textContent = type === "PAUSE" ? "⏸️" : "💡";
+  innerIcon.style.fontSize = "26px";
+  iconPulse.appendChild(innerIcon);
+  container.appendChild(iconPulse);
+
+  // Title
+  const title = document.createElement("div");
+  title.className = "autopilot-title";
+  title.textContent = "Are you sure you want to proceed?";
+  container.appendChild(title);
+
+  // Message
+  const message = document.createElement("div");
+  message.className = "autopilot-message";
+  if (intent) {
+    message.innerHTML = `You declared your intent as <strong style="color: #3b82f6; text-transform: uppercase;">${intent}</strong>, but you are currently watching this video instead.<br/><br/><span style="font-size: 14px; color: #94a3b8; font-style: italic;">"${messageText}"</span>`;
+  } else {
+    message.textContent = messageText;
+  }
+  container.appendChild(message);
+
+  // Add textarea for Reflection
+  let textarea: HTMLTextAreaElement | null = null;
+  if (type === "REFLECTION") {
+    textarea = document.createElement("textarea");
+    textarea.className = "autopilot-textarea";
+    textarea.placeholder = "Write down a mindful thought to unlock this page...";
+    container.appendChild(textarea);
+  }
+
+  // Button Group
+  const buttonGroup = document.createElement("div");
+  buttonGroup.className = "autopilot-button-group";
+
+  const closeTabBtn = document.createElement("button");
+  closeTabBtn.className = "autopilot-btn autopilot-btn-secondary";
+  closeTabBtn.textContent = "Close Tab";
+  closeTabBtn.onclick = () => {
+    try {
+      chrome.runtime.sendMessage({ type: "END_SESSION", payload: { sessionId } }).catch(() => {});
+    } catch (e) {}
+    // Trigger close in a gentle way (standard window.close fallback message)
+    window.close();
+    // Fallback if browser blocks automatic closure
+    alert("Mindful closing: Please close this tab manually to stay focused!");
+  };
+  buttonGroup.appendChild(closeTabBtn);
+
+  const continueBtn = document.createElement("button");
+  continueBtn.className = "autopilot-btn autopilot-btn-primary";
+  continueBtn.textContent = type === "PAUSE" ? "Continue Intentionally" : "Unlock Page";
+  
+  if (type === "REFLECTION" && textarea) {
+    continueBtn.disabled = true;
+    textarea.oninput = () => {
+      continueBtn.disabled = textarea!.value.trim().length < 8; // Require at least 8 chars
+    };
+  }
+
+  continueBtn.onclick = () => {
+    overlay.style.opacity = "0";
+    container.style.transform = "translateY(20px)";
+    setTimeout(() => {
+      overlay.remove();
+    }, 500);
+  };
+  buttonGroup.appendChild(continueBtn);
+
+  container.appendChild(buttonGroup);
+  overlay.appendChild(container);
+  document.body.appendChild(overlay);
+
+  // Force reflow and animate in
+  setTimeout(() => {
+    overlay.style.opacity = "1";
+    container.style.transform = "translateY(0)";
+  }, 50);
+}
+
 // --- CLEANUP ---
 window.addEventListener("beforeunload", () => {
   window.removeEventListener("scroll", handleScroll);
