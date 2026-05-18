@@ -27,12 +27,12 @@ export class InterventionTimingService {
 
     const now = new Date();
 
-    // 1. Cooldown check
+    // 1. Cooldown check (Set to 15 seconds to protect queue from spamming while maintaining instant developer testing!)
     if (lastTimestamp) {
-      const diffMinutes = (now.getTime() - parseInt(lastTimestamp, 10)) / 60000;
-      if (diffMinutes < this.COOLDOWN_MINUTES) {
+      const diffSeconds = (now.getTime() - parseInt(lastTimestamp, 10)) / 1000;
+      if (diffSeconds < 15) {
         this.logger.debug(
-          `Cooldown active for user ${userId}. Skipping intervention.`,
+          `Developer cooldown active for user ${userId} (${diffSeconds.toFixed(1)}s elapsed). Skipping intervention to prevent queue backlog.`,
         );
         return false;
       }
@@ -93,7 +93,6 @@ export class InterventionTimingService {
       this.logger.log(
         `Triggering intervention for session ${session.id} with score ${score}`,
       );
-      await redis.set(lastInterventionKey, now.getTime().toString());
 
       // Enqueue to AI service for generating the actual message and saving
       await this.aiQueue.add('generate-intervention', {
