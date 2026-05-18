@@ -48,6 +48,7 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
 // --- WEBSOCKET CONNECTION ---
 let socket: Socket | null = null;
 let currentSessionId: string | null = null;
+let currentIntent: string | null = null;
 
 const connectWebSocket = async () => {
   let result = await chrome.storage.local.get(["accessToken"]);
@@ -106,6 +107,67 @@ const connectWebSocket = async () => {
     console.log("Received new Autopilot Score:", scoreData);
     // Broadcast score to the popup UI
     chrome.runtime.sendMessage({ type: "SCORE_UPDATE", payload: scoreData }).catch(() => {});
+  });
+
+  socket.on("intervention:trigger", async (intervention) => {
+    console.log("Received AI Intervention:", intervention);
+
+    // Save to local storage
+    const result = await chrome.storage.local.get(["interventions"]);
+    const list = result.interventions || [];
+    list.push({ ...intervention, timestamp: new Date().toISOString() });
+    await chrome.storage.local.set({ interventions: list });
+
+    // Handle by type
+    if (intervention.type === "NUDGE") {
+      chrome.notifications.create({
+        type: "basic",
+        iconUrl: "src/icon.png",
+        title: "Autopilot Detector - Gentle Nudge",
+        message: intervention.message,
+        priority: 2,
+      });
+    } else if (intervention.type === "PAUSE") {
+      chrome.tabs.query({ active: true }, (tabs) => {
+        tabs.forEach((tab) => {
+          if (tab.id) {
+            chrome.tabs.sendMessage(tab.id, {
+              type: "TRIGGER_PAUSE_OVERLAY",
+              payload: {
+                message: intervention.message,
+                sessionId: currentSessionId,
+                intent: currentIntent
+              }
+            }).catch((err) => console.debug("Failed to send PAUSE overlay message to tab:", tab.id, err));
+          }
+        });
+      });
+    } else if (intervention.type === "REFLECTION") {
+      chrome.tabs.query({ active: true }, (tabs) => {
+        tabs.forEach((tab) => {
+          if (tab.id) {
+            chrome.tabs.sendMessage(tab.id, {
+              type: "TRIGGER_REFLECTION_OVERLAY",
+              payload: {
+                message: intervention.message,
+                sessionId: currentSessionId,
+                intent: currentIntent
+              }
+            }).catch((err) => console.debug("Failed to send REFLECTION overlay message to tab:", tab.id, err));
+          }
+        });
+      });
+    } else if (intervention.type === "SLEEP_MODE") {
+      chrome.action.setBadgeText({ text: "💤" });
+      chrome.action.setBadgeBackgroundColor({ color: "#3b82f6" });
+      chrome.notifications.create({
+        type: "basic",
+        iconUrl: "src/icon.png",
+        title: "Late Night Sleep Mode",
+        message: intervention.message,
+        priority: 2,
+      });
+    }
   });
 
   socket.on("disconnect", (reason) => {
@@ -170,6 +232,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   // Handle Session Start from Popup
   if (message.type === "START_SESSION" && socket?.connected) {
+    currentIntent = message.payload.intent;
     socket.emit("session:start", { 
       userId: "dev_user_1",
       appOpened: "Chrome Browser",
