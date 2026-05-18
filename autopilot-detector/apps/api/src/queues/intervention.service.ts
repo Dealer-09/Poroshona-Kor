@@ -51,19 +51,25 @@ export class InterventionService {
       throw new Error(`Session ${sessionId} not found`);
     }
 
-    // 2. Generate embedding of current session state
-    const currentEmbedding = await this.embeddingService.generateEmbedding(
-      session,
-      signals,
-      'RETRIEVAL_QUERY',
-    );
+    // 2. Generate embedding of current session state and find top 3 similar past sessions
+    let similarSessions: any[] = [];
+    try {
+      const currentEmbedding = await this.embeddingService.generateEmbedding(
+        session,
+        signals,
+        'RETRIEVAL_QUERY',
+      );
 
-    // 3. Find top 3 similar past sessions
-    const similarSessions = await this.embeddingService.findSimilarSessions(
-      currentEmbedding,
-      session.userId,
-      3,
-    );
+      similarSessions = await this.embeddingService.findSimilarSessions(
+        currentEmbedding,
+        session.userId,
+        3,
+      );
+    } catch (error: any) {
+      this.logger.warn(
+        `Embedding or similarity search failed. Falling back to clean RAG context. Error: ${error.message}`,
+      );
+    }
 
     // Build context string from past sessions
     const pastOutcomes = similarSessions
@@ -75,19 +81,19 @@ export class InterventionService {
 
     // 4. Build RAG prompt
     const systemPrompt =
-      'You are a gentle digital wellbeing coach. Be concise, non-judgmental, and specific. Max 2 sentences.';
+      'You are a strict, smart digital wellbeing coach. The user is currently DISTRACTED and in "autopilot" mode. Do NOT praise their focus, autonomy, or work under any circumstances. You must contextually and firmly nudge them to return to their declared focus goal. Be extremely concise, direct, and max 2 sentences.';
 
-    let userPrompt = `User intended to ${session.declaredIntent} on ${session.appOpened}.\n`;
+    let userPrompt = `The user declared their intent to study/work on: "${session.declaredIntent}".\n`;
     if (session.pageTitle) {
-      userPrompt += `They are currently viewing content titled: "${session.pageTitle}"`;
+      userPrompt += `However, they are currently wasting time watching/viewing: "${session.pageTitle}"`;
       if (session.pageCategory) {
-        userPrompt += ` (Category: ${session.pageCategory})`;
+        userPrompt += ` (Genre/Category: ${session.pageCategory})`;
       }
       userPrompt += `.\n`;
     }
-    userPrompt += `Current autopilot score: ${score}/100.\n`;
-    userPrompt += `Past similar sessions led to: ${pastOutcomes || 'No past sessions'}.\n`;
-    userPrompt += `Generate a contextual nudge.`;
+    userPrompt += `Their distraction autopilot score is: ${score}/100 (which is extremely high and bad!).\n`;
+    userPrompt += `Past RAG context logs: ${pastOutcomes || 'No previous interventions'}.\n`;
+    userPrompt += `Write a highly relevant, firm nudge encouraging them to get back to their declared goal: "${session.declaredIntent}".`;
 
     // 5. Determine type and best Groq model dynamically
     let type = InterventionType.NUDGE;
@@ -143,6 +149,10 @@ export class InterventionService {
         intervention,
       }),
     );
+
+    // Set the cooldown timestamp in Redis only AFTER successful creation and broadcast!
+    const lastInterventionKey = `user:${session.userId}:lastIntervention`;
+    await redis.set(lastInterventionKey, Date.now().toString());
 
     return intervention;
   }
