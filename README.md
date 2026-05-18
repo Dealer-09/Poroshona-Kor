@@ -3,12 +3,7 @@
 > The algorithm is designed by a thousand engineers to steal your time.
 > We built one thing to take it back.
 
-### 🚀 The Elevator Pitch
-**Autopilot Detector is an AI-powered cognitive guardian that analyzes real-time browsing telemetry to catch you the exact moment you slip into mindless doomscrolling.** Built for students and knowledge workers, it intercepts digital distraction and snaps your brain out of 'autopilot' before you lose hours to the algorithm.
-
----
-
-## 🌍 Live Deployment & Demo
+## Live Deployment & Demo
 
 - **Backend API (Render):** `https://poroshona-kor.onrender.com`
 - **Web Dashboard (Vercel):** *Your Vercel URL here*
@@ -46,7 +41,7 @@ This project is structured as a high-performance **Turborepo** monorepo, utilizi
 
 ---
 
-## ⚡ The Biggest Technical Challenge We Solved
+## The Biggest Technical Challenge We Solved
 
 **Our biggest challenge was processing high-frequency behavioral telemetry (scrolling, tab-switching) without overwhelming our AI APIs or lagging the user's browser.** 
 
