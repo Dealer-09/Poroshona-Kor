@@ -56,12 +56,14 @@ export class SignalsGateway
     const subscriber = this.redisService.getClient().duplicate();
     await subscriber.subscribe('interventions');
     subscriber.on('message', (channel, message) => {
+      console.log(`📡 [RedisSub] Received message on channel "${channel}":`, message);
       if (channel === 'interventions') {
         try {
           const payload = JSON.parse(message) as {
             userId: string;
             intervention: any;
           };
+          console.log(`📢 [RedisSub] Emitting "intervention:trigger" to room "user:${payload.userId}"!`);
           this.server
             .to(`user:${payload.userId}`)
             .emit('intervention:trigger', payload.intervention);
@@ -88,8 +90,10 @@ export class SignalsGateway
       clientData.user = decoded;
 
       // Join user-specific room
+      console.log(`🔌 [Socket.io] Client connected: ${client.id}. Joining room "user:${decoded.sub}"`);
       void client.join(`user:${decoded.sub}`);
-    } catch {
+    } catch (e: any) {
+      console.error(`❌ [Socket.io] Connection auth failed:`, e.message);
       client.disconnect();
     }
   }
