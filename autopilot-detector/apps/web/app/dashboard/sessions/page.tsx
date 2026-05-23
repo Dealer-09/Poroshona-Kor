@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { SessionsTable } from "./SessionsTable";
 import { CoachDailySummary } from "./CoachDailySummary";
+import { AppInfluenceChart } from "./AppInfluenceChart";
 
 interface SessionData {
   id: string;
@@ -60,6 +61,13 @@ export default async function SessionsPage() {
         <div className="overflow-x-auto border-4 border-black">
           <SessionsTable sessions={sessions} />
         </div>
+      </div>
+
+      <div className="neo-card p-6 bg-white h-[450px]">
+        <h3 className="font-black text-2xl uppercase mb-4 bg-black text-white px-4 py-2 inline-block transform rotate-1 shadow-[4px_4px_0_#3b82f6]">
+          App Influence
+        </h3>
+        <AppInfluenceChart sessions={sessions} />
       </div>
     </div>
   );

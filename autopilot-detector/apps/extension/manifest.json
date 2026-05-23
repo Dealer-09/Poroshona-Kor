@@ -3,17 +3,32 @@
   "name": "Autopilot Detector",
   "version": "1.0.0",
   "description": "Digital Autopilot Detector",
-  "permissions": ["tabs", "activeTab", "storage", "scripting", "alarms", "notifications"],
-  "host_permissions": ["*://*/*"],
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "storage",
+    "scripting",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "*://*/*"
+  ],
   "background": {
     "service_worker": "src/background.ts",
     "type": "module"
   },
   "content_scripts": [
     {
-      "matches": ["*://*/*"],
-      "js": ["src/content.ts"],
-      "css": ["src/content.css"]
+      "matches": [
+        "*://*/*"
+      ],
+      "js": [
+        "src/content.ts"
+      ],
+      "css": [
+        "src/content.css"
+      ]
     }
   ],
   "icons": {
@@ -21,6 +36,8 @@
   },
   "action": {
     "default_popup": "src/popup.html",
-    "default_icon": "src/icon.png"
+    "default_icon": {
+      "128": "src/icon.png"
+    }
   }
 }

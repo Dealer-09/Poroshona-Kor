@@ -7,8 +7,7 @@ export class UsersService {
   private readonly logger = new Logger(UsersService.name);
   // In production, this MUST come from an environment variable (32 bytes)
   private readonly algorithm = 'aes-256-gcm';
-  private readonly secretKey =
-    process.env.ENCRYPTION_SECRET || '12345678901234567890123456789012';
+  private readonly secretKey = process.env.ENCRYPTION_SECRET as string;
 
   constructor(private readonly prisma: PrismaService) {}
 

@@ -27,7 +27,7 @@ export class SessionsController {
   }
 
   @Get(':id/scores')
-  async getSessionScores(@Param('id') id: string) {
-    return this.sessionsService.getSessionScores(id);
+  async getSessionScores(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.sessionsService.getSessionScores(id, req.user.id);
   }
 }

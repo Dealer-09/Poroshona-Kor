@@ -33,6 +33,7 @@ export default function LoginPage() {
       }
 
       login(data.access_token);
+      window.postMessage({ type: "AUTOPILOT_AUTH_TOKEN", token: data.access_token }, "*");
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "An unknown error occurred";
       setError(errorMsg);

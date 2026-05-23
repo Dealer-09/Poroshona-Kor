@@ -13,9 +13,10 @@ let currentScore = 0;
 
 // Initialize
 const init = async () => {
-  const result = await chrome.storage.session.get(["userIntent"]);
+  const result = await chrome.storage.session.get(["userIntent", "lastScore"]);
   if (result.userIntent) {
     showDashboard(result.userIntent);
+    if (result.lastScore !== undefined) updateScoreUI(result.lastScore);
   } else {
     showIntentSelection();
   }
@@ -57,7 +58,7 @@ intentButtons.forEach((btn) => {
 
 // Handle Reset
 resetBtn.addEventListener("click", async () => {
-  await chrome.storage.session.remove(["userIntent"]);
+  await chrome.storage.session.remove(["userIntent", "lastScore"]);
   
   // Notify backend to end session
   chrome.runtime.sendMessage({ type: "END_SESSION" });

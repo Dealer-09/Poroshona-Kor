@@ -4,39 +4,6 @@ import { BehavioralSignal } from "@autopilot/shared";
 
 console.log("Autopilot Detector Background Service Worker running.");
 
-// --- AUTO-INJECT CONTENT SCRIPTS ON RELOAD ---
-chrome.runtime.onInstalled.addListener(() => {
-  console.log("🚨 [AUTO-INJECT] Extension reloaded. Force-connecting open tabs...");
-  chrome.tabs.query({ windowType: "normal" }, (tabs) => {
-    tabs.forEach((tab) => {
-      const tabId = tab.id;
-      const tabUrl = tab.url;
-      // Exclude special browser schemes and dashboards
-      if (
-        tabId &&
-        tabUrl &&
-        !tabUrl.startsWith("chrome:") &&
-        !tabUrl.startsWith("edge:") &&
-        !tabUrl.startsWith("about:") &&
-        !tabUrl.includes("localhost") &&
-        !tabUrl.includes("vercel")
-      ) {
-        chrome.scripting.executeScript({
-          target: { tabId: tabId },
-          files: ["src/content.js"]
-        }).then(() => {
-          console.log("✅ [AUTO-INJECT] Successfully connected content script to tab:", tabId, tabUrl);
-          chrome.scripting.insertCSS({
-            target: { tabId: tabId },
-            files: ["src/content.css"]
-          }).catch((err) => console.log("❌ [AUTO-INJECT] Failed to inject CSS:", tabId, err.message));
-        }).catch((err) => {
-          console.log("⚠️ [AUTO-INJECT] Skipping tab injection:", tabId, tabUrl, err.message);
-        });
-      }
-    });
-  });
-});
 
 // --- TAB TRACKING STATE ---
 let tabSwitchCount = 0;
@@ -89,30 +56,8 @@ const connectWebSocket = async () => {
   let token = result.accessToken;
 
   if (!token) {
-    try {
-      console.log("No token found. Fetching dev token from API...");
-      // For dev, register/login a test user to get a valid JWT
-      await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:3001"}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "extension_dev@example.com", password: "password123" })
-      }).catch(() => {}); // ignore if already registered
-
-      const loginRes = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:3001"}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "extension_dev@example.com", password: "password123" })
-      });
-      const data = await loginRes.json();
-      token = data.access_token;
-      
-      if (token) {
-        await chrome.storage.local.set({ accessToken: token });
-        console.log("Dev token securely stored.");
-      }
-    } catch (e) {
-      console.error("Failed to fetch dev token", e);
-    }
+    console.warn("No auth token. Please log in via the dashboard.");
+    return;
   }
 
   // Implement exponential backoff + jitter for reconnection
@@ -139,6 +84,7 @@ const connectWebSocket = async () => {
 
   socket.on("score:update", (scoreData) => {
     console.log("Received new Autopilot Score:", scoreData);
+    chrome.storage.session.set({ lastScore: Math.round(scoreData.score) });
     // Broadcast score to the popup UI
     chrome.runtime.sendMessage({ type: "SCORE_UPDATE", payload: scoreData }).catch(() => {});
   });
@@ -240,7 +186,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       const completeSignals: BehavioralSignal[] = rawSignals.map((sig) => ({
         ...sig,
         sessionId: currentSessionId!,
-        userId: "dev_user_1",
         tabSwitchCount: tabSwitchCount,
         activeDomain: activeDomain,
         activeTabTitle: activeTabTitle,
@@ -262,6 +207,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "SAVE_AUTH_TOKEN") {
     console.log("Saving Auth Token from Dashboard...");
     chrome.storage.local.set({ accessToken: message.payload }, () => {
+      socket?.disconnect();
       // Reconnect WebSockets with the new token
       connectWebSocket();
     });
@@ -271,10 +217,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   // Handle Session Start from Popup
   if (message.type === "START_SESSION" && socket?.connected) {
     currentIntent = message.payload.intent;
-    socket.emit("session:start", { 
-      userId: "dev_user_1",
-      appOpened: "Chrome Browser",
-      declaredIntent: message.payload.intent
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      let appOpened = "Chrome Browser";
+      try { appOpened = new URL(tabs[0]?.url || "").hostname || "Chrome Browser"; } catch {}
+      socket?.emit("session:start", { 
+        appOpened,
+        declaredIntent: message.payload.intent
+      });
     });
   }
 

@@ -9,6 +9,7 @@ import { EmbeddingService } from './embedding.service';
 export class AiChatService {
   private readonly logger = new Logger(AiChatService.name);
   private readonly serverGroqKey: string | undefined;
+  private groqClients = new Map<string, Groq>();
 
   constructor(
     private readonly configService: ConfigService,
@@ -17,6 +18,13 @@ export class AiChatService {
     private readonly embeddingService: EmbeddingService,
   ) {
     this.serverGroqKey = this.configService.get<string>('GROQ_API_KEY');
+  }
+
+  private getGroqClient(apiKey: string): Groq {
+    if (!this.groqClients.has(apiKey)) {
+      this.groqClients.set(apiKey, new Groq({ apiKey }));
+    }
+    return this.groqClients.get(apiKey)!;
   }
 
   async generateReflection(userId: string, message: string): Promise<string> {
@@ -68,7 +76,7 @@ export class AiChatService {
     }
 
     try {
-      const groq = new Groq({ apiKey: activeKey });
+      const groq = this.getGroqClient(activeKey);
       const completion = await groq.chat.completions.create({
         model: 'llama-3.1-8b-instant',
         max_tokens: 250,
@@ -117,8 +125,12 @@ export class AiChatService {
           select: { score: true },
         },
       },
-      orderBy: { startedAt: 'asc' },
+      orderBy: { startedAt: 'desc' },
+      take: 20,
     });
+
+    // Reverse so they appear chronologically in the prompt
+    todaysSessions.reverse();
 
     if (todaysSessions.length === 0) {
       return 'No sessions recorded today yet. Start a session to see your AI Coach summary!';
@@ -142,7 +154,7 @@ export class AiChatService {
     });
 
     try {
-      const groq = new Groq({ apiKey: activeKey });
+      const groq = this.getGroqClient(activeKey);
       const completion = await groq.chat.completions.create({
         model: 'llama-3.1-8b-instant',
         max_tokens: 150,

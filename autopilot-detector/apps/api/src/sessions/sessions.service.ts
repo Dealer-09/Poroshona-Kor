@@ -7,7 +7,7 @@ export class SessionsService {
 
   async getCurrentSession(userId: string) {
     const session = await this.prisma.session.findFirst({
-      where: { userId },
+      where: { userId, endedAt: null },
       orderBy: { startedAt: 'desc' },
     });
     return session || null;
@@ -36,8 +36,8 @@ export class SessionsService {
       // Determine inferred actual behavior based on peak score (simplistic heuristic)
       let actualBehavior = 'Study';
       if (peakScore > 85) actualBehavior = 'Doomscrolling';
-      else if (peakScore > 60) actualBehavior = 'Mixed';
-      else if (peakScore > 40) actualBehavior = 'Entertainment';
+      else if (peakScore > 60) actualBehavior = 'Entertainment';
+      else if (peakScore > 40) actualBehavior = 'Mixed';
 
       return {
         id: session.id,
@@ -52,12 +52,12 @@ export class SessionsService {
     });
   }
 
-  async getSessionScores(sessionId: string) {
+  async getSessionScores(sessionId: string, userId: string) {
     const session = await this.prisma.session.findUnique({
       where: { id: sessionId },
     });
 
-    if (!session) {
+    if (!session || session.userId !== userId) {
       throw new NotFoundException(`Session ${sessionId} not found`);
     }
 

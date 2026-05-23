@@ -18,8 +18,11 @@ async function bootstrap() {
   const httpAdapter = app.get(HttpAdapterHost);
   app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
 
-  // Enable CORS since the Chrome Extension/Web App will be consuming this API
-  app.enableCors();
+  // Enable CORS securely for Web App and Extension
+  app.enableCors({
+    origin: [process.env.FRONTEND_URL || process.env.WEB_URL || 'http://localhost:3000'],
+    credentials: true,
+  });
 
   await app.listen(process.env.PORT ?? 3000);
 }

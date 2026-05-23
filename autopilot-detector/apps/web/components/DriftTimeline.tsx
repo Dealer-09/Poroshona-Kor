@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSocket } from "@/contexts/useSocket";
 
 interface ScoreData {
   score: number;
@@ -15,6 +16,7 @@ interface DriftTimelineProps {
 
 export function DriftTimeline({ sessionId }: DriftTimelineProps) {
   const { token } = useAuth();
+  const { socket } = useSocket();
   const [data, setData] = useState<{ time: string; score: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -48,6 +50,25 @@ export function DriftTimeline({ sessionId }: DriftTimelineProps) {
 
     fetchScores();
   }, [token, sessionId]);
+
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleScoreUpdate = (scoreData: any) => {
+      if (scoreData.sessionId === sessionId) {
+        setData((prev) => {
+          const d = new Date(scoreData.timestamp);
+          const time = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+          return [...prev, { time, score: scoreData.score }];
+        });
+      }
+    };
+
+    socket.on("score:update", handleScoreUpdate);
+    return () => {
+      socket.off("score:update", handleScoreUpdate);
+    };
+  }, [socket, sessionId]);
 
   if (loading) {
     return (

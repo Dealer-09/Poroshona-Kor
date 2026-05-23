@@ -88,7 +88,7 @@ intervalId = window.setInterval(() => {
   passiveTimeAcc = 0;
   activeTimeAcc = 0;
 
-  // Batching: emit every 2 signals (~4 seconds) for instant testing!
+  // Batching: emit every 2 signals (~4 seconds) for baseline aggregation
   if (signalBatch.length >= 2) {
     try {
       chrome.runtime.sendMessage({
@@ -145,7 +145,8 @@ window.addEventListener("message", (event) => {
   // Only accept messages from the dashboard
   if (
     event.origin === "http://localhost:3000" || 
-    event.origin.includes("vercel.app")
+    event.origin.includes("vercel.app") ||
+    event.origin.includes("onrender.com")
   ) {
     if (event.data?.type === "AUTOPILOT_AUTH_TOKEN" && event.data?.token) {
       try {

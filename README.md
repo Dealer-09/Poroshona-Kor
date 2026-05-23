@@ -5,9 +5,8 @@
 
 ## Live Deployment & Demo
 
-- **Backend API (Render):** `https://poroshona-kor.onrender.com`
-- **Web Dashboard (Vercel):** *Your Vercel URL here*
-- **Chrome Extension:** Pre-compiled and ready for installation in the `apps/extension/dist` folder.
+- **Web Dashboard (Vercel):** *https://poroshona-kor.vercel.app/dashboard*
+- **Chrome Extension:** Pre-compiled and ready for installation in *https://github.com/Dealer-09/poroshona-Kor/releases/tag/v0.1*.
 
 ---
 
@@ -117,7 +116,7 @@ Navigate to the respective directories and set up your environment variables:
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env.local
 ```
-**Important:** You must populate `GEMINI_API_KEY`, `GROQ_API_KEY`, and a 32-character `ENCRYPTION_SECRET` in `apps/api/.env`.
+**Important:** You must populate a 32-character `ENCRYPTION_SECRET` in `apps/api/.env`. (`GEMINI_API_KEY` and `GROQ_API_KEY` are optional server-side fallbacks for our BYOK architecture).
 
 ### 4. Database Initialization
 Generate the Prisma client and push the schema to your database (while inside `autopilot-detector`):
@@ -139,11 +138,13 @@ This command utilizes Turborepo to simultaneously start the NestJS API, Next.js 
 
 ## Loading the Chrome Extension
 
-1. Open Chrome and go to `chrome://extensions/`.
-2. Enable **Developer mode** (top right corner).
-3. Click **Load unpacked**.
-4. Select the `apps/extension/dist` folder in this project directory.
-5. You can now use the extension popup to set your intent and start a session!
+1. Build the extension first: `bun --filter @autopilot/extension build`
+2. Open Chrome and go to `chrome://extensions/`.
+3. Enable **Developer mode** (top right corner).
+4. Click **Load unpacked**.
+5. Select the `apps/extension/dist` folder in this project directory.
+6. **Log into the Web Dashboard first**—your auth token will automatically bridge to the extension!
+7. You can now use the extension popup to set your intent and start a session.
 
 ---
 

@@ -97,6 +97,7 @@ export class EmbeddingService {
     await this.prisma.$executeRaw`
       INSERT INTO "SessionEmbedding" ("id", "sessionId", "embedding")
       VALUES (gen_random_uuid(), ${sessionId}::uuid, ${vectorString}::vector)
+      ON CONFLICT ("sessionId") DO UPDATE SET "embedding" = EXCLUDED."embedding"
     `;
   }
 
