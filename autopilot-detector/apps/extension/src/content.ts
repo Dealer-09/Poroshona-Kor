@@ -11,6 +11,10 @@ let totalScrollDistance = 0;
 let passiveTimeAcc = 0;
 let activeTimeAcc = 0;
 
+// Stage 2: Scroll depth + page reset tracking
+let maxScrollDepth = 0;   // max % scrolled down during this interval
+let pageResetCount = 0;   // times the user jumped back to top (infinite scroll loop)
+
 // Batch buffer
 let signalBatch: Partial<BehavioralSignal>[] = [];
 
@@ -28,7 +32,7 @@ const handleClick = () => {
   clickCount++;
 };
 
-// --- SCROLL VELOCITY ---
+// --- SCROLL VELOCITY + DEPTH + PAGE RESET ---
 const handleScroll = () => {
   handleInteraction();
   if (rafId === null) {
@@ -36,6 +40,20 @@ const handleScroll = () => {
       const currentScrollY = window.scrollY;
       const distance = Math.abs(currentScrollY - lastScrollY);
       totalScrollDistance += distance;
+
+      // Stage 2: Track scroll depth (0–100%)
+      const pageHeight = Math.max(1, document.body.scrollHeight - window.innerHeight);
+      const depthPercent = Math.round((currentScrollY / pageHeight) * 100);
+      if (depthPercent > maxScrollDepth) {
+        maxScrollDepth = depthPercent;
+      }
+
+      // Stage 2: Detect page reset (jumped from deep scroll back to top)
+      // Classic infinite scroll loop signal: hit bottom → page reloads to top
+      if (currentScrollY < 50 && lastScrollY > 500) {
+        pageResetCount++;
+      }
+
       lastScrollY = currentScrollY;
       rafId = null;
     });
@@ -68,8 +86,8 @@ intervalId = window.setInterval(() => {
   // Calculate pixels per second for the last 2s tick
   const scrollVelocity = totalScrollDistance / (TICK_RATE_MS / 1000);
 
-  // Build the signal. 
-  // Note: sessionId and userId are managed by the background script, 
+  // Build the signal.
+  // Note: sessionId and userId are managed by the background script,
   // so we send a partial signal and let the background worker merge it.
   const signal: Partial<BehavioralSignal> = {
     timestamp: new Date().toISOString(),
@@ -78,6 +96,9 @@ intervalId = window.setInterval(() => {
     clickRate: clickCount,
     passiveTime: passiveTimeAcc / 1000, // in seconds
     activeTime: activeTimeAcc / 1000, // in seconds
+    // Stage 2: infinite scroll signals
+    scrollDepthPercent: maxScrollDepth,
+    pageResetCount: pageResetCount,
   };
 
   signalBatch.push(signal);
@@ -87,6 +108,9 @@ intervalId = window.setInterval(() => {
   clickCount = 0;
   passiveTimeAcc = 0;
   activeTimeAcc = 0;
+  // Stage 2: reset scroll depth + page reset counters each interval
+  maxScrollDepth = 0;
+  pageResetCount = 0;
 
   // Batching: emit every 2 signals (~4 seconds) for baseline aggregation
   if (signalBatch.length >= 2) {
@@ -161,16 +185,171 @@ window.addEventListener("message", (event) => {
   }
 });
 
-// --- INTERVENTION OVERLAYS ---
+// --- INTERVENTION OVERLAYS + MOOD CHECK ---
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   console.log("📥 Content Script received message from background:", message);
   if (message.type === "TRIGGER_PAUSE_OVERLAY") {
     createInterventionOverlay(message.payload.message, "PAUSE", message.payload.sessionId, message.payload.intent);
   } else if (message.type === "TRIGGER_REFLECTION_OVERLAY") {
     createInterventionOverlay(message.payload.message, "REFLECTION", message.payload.sessionId, message.payload.intent);
+  } else if (message.type === "SHOW_MOOD_CHECK") {
+    // Stage 2: Post-session mood check overlay
+    createMoodOverlay();
+  } else if (message.type === "SHOW_BUDGET_OVERLAY") {
+    // Stage 2: Budget exhausted overlay
+    createBudgetOverlay(message.payload.domain, message.payload.usedSeconds, message.payload.budgetSeconds);
   }
   sendResponse({ status: "overlay_received" });
 });
+
+// --- STAGE 2: MOOD CHECK OVERLAY ---
+function createMoodOverlay() {
+  if (document.getElementById("autopilot-mood-overlay")) return;
+
+  const overlay = document.createElement("div");
+  overlay.id = "autopilot-mood-overlay";
+  overlay.className = "mood-overlay";
+
+  const card = document.createElement("div");
+  card.className = "mood-overlay-card";
+
+  const heading = document.createElement("div");
+  heading.className = "autopilot-title";
+  heading.style.fontSize = "20px";
+  heading.style.marginBottom = "8px";
+  heading.textContent = "HOW DID THAT SESSION FEEL?";
+  card.appendChild(heading);
+
+  const sub = document.createElement("div");
+  sub.className = "autopilot-message";
+  sub.style.marginBottom = "20px";
+  sub.textContent = "Rate your mental state after this browsing session.";
+  card.appendChild(sub);
+
+  const moods = [
+    { rating: 1, emoji: "😩", label: "Drained" },
+    { rating: 2, emoji: "😕", label: "Meh" },
+    { rating: 3, emoji: "😐", label: "Neutral" },
+    { rating: 4, emoji: "🙂", label: "Good" },
+    { rating: 5, emoji: "😄", label: "Energized" },
+  ];
+
+  const emojiRow = document.createElement("div");
+  emojiRow.style.display = "flex";
+  emojiRow.style.gap = "12px";
+  emojiRow.style.justifyContent = "center";
+  emojiRow.style.marginBottom = "16px";
+
+  const dismiss = () => {
+    overlay.style.opacity = "0";
+    setTimeout(() => overlay.remove(), 400);
+  };
+
+  moods.forEach(({ rating, emoji, label }) => {
+    const btn = document.createElement("button");
+    btn.className = "mood-emoji-btn";
+    btn.innerHTML = `<span style="font-size:28px;display:block">${emoji}</span><span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">${label}</span>`;
+    btn.onclick = () => {
+      try {
+        chrome.runtime.sendMessage({ type: "MOOD_RATING", payload: { rating } }).catch(() => {});
+      } catch (e) {}
+      dismiss();
+    };
+    emojiRow.appendChild(btn);
+  });
+  card.appendChild(emojiRow);
+
+  const skipLink = document.createElement("div");
+  skipLink.style.cssText = "text-align:center;font-size:12px;color:#64748b;cursor:pointer;text-decoration:underline;margin-top:4px";
+  skipLink.textContent = "Skip";
+  skipLink.onclick = () => {
+    try {
+      chrome.runtime.sendMessage({ type: "MOOD_RATING", payload: { rating: null } }).catch(() => {});
+    } catch (e) {}
+    dismiss();
+  };
+  card.appendChild(skipLink);
+
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+
+  // Animate in
+  setTimeout(() => { overlay.style.opacity = "1"; card.style.transform = "translateY(0)"; }, 50);
+
+  // Auto-dismiss after 20 seconds
+  setTimeout(() => {
+    try {
+      chrome.runtime.sendMessage({ type: "MOOD_RATING", payload: { rating: null } }).catch(() => {});
+    } catch (e) {}
+    dismiss();
+  }, 20000);
+}
+
+// --- STAGE 2: BUDGET EXHAUSTED OVERLAY ---
+function createBudgetOverlay(domain: string, usedSeconds: number, budgetSeconds: number) {
+  if (document.getElementById("autopilot-budget-overlay")) return;
+
+  const usedMins = Math.round(usedSeconds / 60);
+  const budgetMins = Math.round(budgetSeconds / 60);
+
+  const overlay = document.createElement("div");
+  overlay.id = "autopilot-budget-overlay";
+  overlay.className = "autopilot-intervention-overlay";
+  overlay.style.background = "rgba(0,0,0,0.9)";
+
+  const container = document.createElement("div");
+  container.className = "autopilot-container";
+  container.style.borderTop = "4px solid #ef4444";
+
+  const heading = document.createElement("div");
+  heading.className = "autopilot-title";
+  heading.style.color = "#ef4444";
+  heading.textContent = "BUDGET EXHAUSTED";
+  container.appendChild(heading);
+
+  const domainEl = document.createElement("div");
+  domainEl.style.cssText = "font-size:14px;font-weight:700;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.1em";
+  domainEl.textContent = domain;
+  container.appendChild(domainEl);
+
+  const body = document.createElement("div");
+  body.className = "autopilot-message";
+  body.textContent = `You set a ${budgetMins} min daily limit. You have used ${usedMins} min today.`;
+  container.appendChild(body);
+
+  const footer = document.createElement("div");
+  footer.style.cssText = "font-size:11px;color:#475569;text-align:center;margin-bottom:16px;font-style:italic";
+  footer.textContent = "Budget resets at midnight.";
+  container.appendChild(footer);
+
+  const btnGroup = document.createElement("div");
+  btnGroup.className = "autopilot-button-group";
+
+  const leaveBtn = document.createElement("button");
+  leaveBtn.className = "autopilot-btn autopilot-btn-primary";
+  leaveBtn.style.background = "#ef4444";
+  leaveBtn.textContent = "LEAVE SITE";
+  leaveBtn.onclick = () => { window.history.back(); };
+  btnGroup.appendChild(leaveBtn);
+
+  const overrideBtn = document.createElement("button");
+  overrideBtn.className = "autopilot-btn autopilot-btn-secondary";
+  overrideBtn.textContent = "OVERRIDE — I'M SURE";
+  overrideBtn.onclick = () => {
+    try {
+      chrome.runtime.sendMessage({ type: "BUDGET_OVERRIDE", payload: { domain } }).catch(() => {});
+    } catch (e) {}
+    overlay.remove();
+  };
+  btnGroup.appendChild(overrideBtn);
+
+  container.appendChild(btnGroup);
+  overlay.appendChild(container);
+  document.body.appendChild(overlay);
+
+  setTimeout(() => { overlay.style.opacity = "1"; container.style.transform = "translateY(0)"; }, 50);
+}
+
 
 function createInterventionOverlay(messageText: string, type: "PAUSE" | "REFLECTION", sessionId: string, intent?: string) {
   // Check if an overlay already exists

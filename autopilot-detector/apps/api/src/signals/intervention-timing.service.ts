@@ -38,9 +38,19 @@ export class InterventionTimingService {
       }
     }
 
+    // Stage 2: Pomodoro break guard — no interventions during a break
+    const isInPomodoroBreak = signals.some((s) => s.isPomodoroBreak === true);
+    if (isInPomodoroBreak) {
+      this.logger.debug(
+        `User ${userId} is in a Pomodoro break. Skipping intervention.`,
+      );
+      return false;
+    }
+
     // 2. Active typing guard
     // Check if activeTime is dominant in the last 30 seconds (last 3 batches if each is 10s)
     const recentSignals = signals.slice(-3);
+
     const recentActive = recentSignals.reduce(
       (acc, s) => acc + s.activeTime,
       0,
@@ -58,6 +68,10 @@ export class InterventionTimingService {
 
     let shouldTrigger = false;
 
+    // Stage 2: Passive mode guard — PASSIVE sessions only get nudge-level interventions
+    // No overlays (PAUSE, REFLECTION, SLEEP_MODE) in silent tracking mode
+    const isPassiveSession = session.declaredIntent === 'PASSIVE';
+
     // 3. Evaluation logic
     const currentHour = now.getHours();
     const isLateNight = currentHour >= 23 || currentHour < 6;
@@ -67,24 +81,36 @@ export class InterventionTimingService {
     // Track 60+ crossings
     const crossingKey = `session:${session.id}:crossings`;
 
-    if (isLateNight && score > 50) {
-      shouldTrigger = true; // SLEEP_MODE
-    } else if (score > 85 || sessionDurationMinutes > 90) {
-      shouldTrigger = true; // REFLECTION
-    } else if (score > 75) {
-      shouldTrigger = true; // PAUSE
-    } else if (score > 60) {
-      const crossings = await redis.incr(crossingKey);
-      if (crossings >= 3) {
-        shouldTrigger = true; // PAUSE (upgrade)
-      } else {
-        // NUDGE
-        // Check if first time today
+    if (isPassiveSession) {
+      // Passive mode: only trigger a gentle NUDGE for very high scores (>70), no overlays
+      if (score > 70) {
         const todayNudgeKey = `user:${userId}:nudge:${now.toISOString().split('T')[0]}`;
         const hasNudgedToday = await redis.get(todayNudgeKey);
         if (!hasNudgedToday) {
           shouldTrigger = true;
-          await redis.set(todayNudgeKey, '1', 'EX', 86400); // Expire in 1 day
+          await redis.set(todayNudgeKey, '1', 'EX', 86400);
+        }
+      }
+    } else {
+      if (isLateNight && score > 50) {
+        shouldTrigger = true; // SLEEP_MODE
+      } else if (score > 85 || sessionDurationMinutes > 90) {
+        shouldTrigger = true; // REFLECTION
+      } else if (score > 75) {
+        shouldTrigger = true; // PAUSE
+      } else if (score > 60) {
+        const crossings = await redis.incr(crossingKey);
+        if (crossings >= 3) {
+          shouldTrigger = true; // PAUSE (upgrade)
+        } else {
+          // NUDGE
+          // Check if first time today
+          const todayNudgeKey = `user:${userId}:nudge:${now.toISOString().split('T')[0]}`;
+          const hasNudgedToday = await redis.get(todayNudgeKey);
+          if (!hasNudgedToday) {
+            shouldTrigger = true;
+            await redis.set(todayNudgeKey, '1', 'EX', 86400); // Expire in 1 day
+          }
         }
       }
     }

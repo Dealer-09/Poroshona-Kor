@@ -31,6 +31,16 @@ export class AutopilotScoreService {
     let timeWindowMinutes = (lastTime - firstTime) / 60000;
     if (timeWindowMinutes <= 0) timeWindowMinutes = 0.1; // fallback to avoid division by zero
 
+    // Stage 2: Scroll depth + page reset aggregates
+    const scrollDepthAvg =
+      signals.reduce((acc, s) => acc + (s.scrollDepthPercent ?? 0), 0) /
+      (signals.length || 1);
+    const totalPageResets = signals.reduce(
+      (acc, s) => acc + (s.pageResetCount ?? 0),
+      0,
+    );
+    const pageResetRate = totalPageResets / timeWindowMinutes; // resets per minute
+
     // 3. Focus Fragmentation (Tab Switch Rate)
     // tabSwitchCount is an absolute counter from the extension.
     // Switches in this window is (last - first)
@@ -237,10 +247,12 @@ export class AutopilotScoreService {
       }
     } else {
       // Default fallback (no intent or unknown)
+      // Stage 2: weight page resets heavily — they are the strongest doomscroll signal
       doomscrollProbability =
-        passiveRatio * 0.75 +
-        focusFragmentation * 0.25 +
-        scrollVelocityNormalized * 0.3;
+        scrollVelocityNormalized * 0.25 +
+        passiveRatio * 0.30 +
+        focusFragmentation * 0.20 +
+        (pageResetRate > 2 ? 0.25 : (pageResetRate / 2) * 0.25); // caps at 0.25
     }
 
     // Keep within bounds [0, 1]
@@ -259,6 +271,9 @@ export class AutopilotScoreService {
       cognitiveDrift,
       doomscrollProbability,
       timestamp: new Date().toISOString(),
+      // Stage 2: include infinite scroll metrics in the returned score
+      scrollDepthAvg: Math.round(scrollDepthAvg),
+      pageResetRate: Math.round(pageResetRate * 100) / 100,
     };
   }
 
@@ -270,6 +285,8 @@ export class AutopilotScoreService {
       cognitiveDrift: 0,
       doomscrollProbability: 0,
       timestamp: new Date().toISOString(),
+      scrollDepthAvg: 0,
+      pageResetRate: 0,
     };
   }
 }

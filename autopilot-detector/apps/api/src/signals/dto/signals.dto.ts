@@ -6,6 +6,8 @@ import {
   ValidateNested,
   IsArray,
   IsEnum,
+  IsOptional,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { BehavioralSignal, AppIntent } from '@autopilot/shared';
@@ -42,15 +44,33 @@ export class BehavioralSignalDto implements BehavioralSignal {
   @IsNotEmpty()
   sessionId: string;
 
+  // userId is NOT sent by the extension — it is read from the JWT in the gateway.
+  // Keeping this optional so the DTO does not reject batches that omit it.
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  userId: string;
+  userId?: string;
 
+  @IsOptional()
   @IsString()
-  activeDomain: string;
+  activeDomain?: string;
 
+  @IsOptional()
   @IsString()
-  activeTabTitle: string;
+  activeTabTitle?: string;
+
+  // Stage 2: Infinite scroll signals
+  @IsOptional()
+  @IsNumber()
+  scrollDepthPercent?: number;
+
+  @IsOptional()
+  @IsNumber()
+  pageResetCount?: number;
+
+  // Stage 2: Pomodoro break flag
+  @IsOptional()
+  @IsBoolean()
+  isPomodoroBreak?: boolean;
 }
 
 export class BehavioralSignalBatchDto {

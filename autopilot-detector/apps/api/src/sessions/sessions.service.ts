@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -67,5 +67,48 @@ export class SessionsService {
     });
 
     return scores;
+  }
+
+  // Stage 2: Save post-session mood rating and upsert MoodEntry for correlation chart
+  async saveMoodRating(sessionId: string, userId: string, moodRating: number) {
+    // IDOR check: ensure the session belongs to this user
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (!session || session.userId !== userId) {
+      throw new NotFoundException(`Session ${sessionId} not found`);
+    }
+
+    // Validate mood rating range
+    if (moodRating < 1 || moodRating > 5 || !Number.isInteger(moodRating)) {
+      throw new BadRequestException('moodRating must be an integer between 1 and 5');
+    }
+
+    // Update moodRating on Session
+    await this.prisma.session.update({
+      where: { id: sessionId },
+      data: { moodRating },
+    });
+
+    // Calculate average autopilot score for this session
+    const scores = await this.prisma.autopilotScore.findMany({
+      where: { sessionId },
+      select: { score: true },
+    });
+
+    const avgScore =
+      scores.length > 0
+        ? scores.reduce((sum, s) => sum + s.score, 0) / scores.length
+        : 0;
+
+    // Upsert MoodEntry for the correlation chart
+    await this.prisma.moodEntry.upsert({
+      where: { sessionId },
+      update: { moodRating, avgScore },
+      create: { userId, sessionId, moodRating, avgScore },
+    });
+
+    return { ok: true, moodRating, avgScore };
   }
 }

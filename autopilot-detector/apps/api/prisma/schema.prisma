@@ -13,6 +13,7 @@ enum AppIntent {
   TUTORIAL
   ENTERTAINMENT
   PRODUCTIVITY
+  PASSIVE
 }
 
 enum InterventionType {
@@ -23,13 +24,14 @@ enum InterventionType {
 }
 
 model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  email        String    @unique
+  id           String      @id @default(uuid()) @db.Uuid
+  email        String      @unique
   password     String
-  createdAt    DateTime  @default(now())
-  groqApiKey   String?   // User's personal Groq key for classification & chat
-  geminiApiKey String?   // User's personal Gemini key for vector embeddings
+  createdAt    DateTime    @default(now())
+  groqApiKey   String?     // User's personal Groq key for classification & chat
+  geminiApiKey String?     // User's personal Gemini key for vector embeddings
   sessions     Session[]
+  moodEntries  MoodEntry[]
 }
 
 model Session {
@@ -42,9 +44,11 @@ model Session {
   declaredIntent AppIntent
   pageTitle      String?
   pageCategory   String?
+  moodRating     Int?               // 1–5 scale, null if not rated, set post-session
   scores         AutopilotScore[]
   interventions  Intervention[]
   embeddings     SessionEmbedding[]
+  moodEntry      MoodEntry?
 }
 
 model AutopilotScore {
@@ -74,3 +78,15 @@ model SessionEmbedding {
   session   Session                   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   embedding Unsupported("vector(512)")
 }
+
+// Stage 2: Post-session mood tracking for correlation chart
+model MoodEntry {
+  id         String   @id @default(cuid())
+  userId     String   @db.Uuid
+  sessionId  String   @unique @db.Uuid
+  moodRating Int      // 1–5: 1=Drained, 2=Meh, 3=Neutral, 4=Good, 5=Energized
+  avgScore   Float    // average autopilot score for that session
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+  session    Session  @relation(fields: [sessionId], references: [id])
+}

@@ -7,7 +7,7 @@ async function getCurrentSessionId() {
   if (!token) return null;
 
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/sessions/current`, {
+    const res = await fetch(`${process.env.API_URL || "http://localhost:3001"}/sessions/current`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store"
     });
@@ -61,7 +61,7 @@ export default async function DashboardPage() {
 
       <div className="mt-8">
         {sessionId ? (
-          <div className="h-[400px]">
+          <div className="h-[400px] w-full">
             <DriftTimeline sessionId={sessionId} />
           </div>
         ) : (

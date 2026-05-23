@@ -69,6 +69,35 @@
         padding-left: 8px;
       }
 
+      /* Nav Tabs */
+      .nav-tabs {
+        display: flex;
+        border-bottom: 3px solid black;
+        margin-bottom: 16px;
+        gap: 0;
+      }
+      .nav-tab {
+        flex: 1;
+        background: white;
+        border: 2px solid black;
+        border-bottom: none;
+        padding: 6px 4px;
+        font-family: inherit;
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+        cursor: pointer;
+        text-align: center;
+        transition: background 0.1s;
+      }
+      .nav-tab.active {
+        background: black;
+        color: white;
+      }
+      .nav-tab:hover:not(.active) {
+        background: #fef08a;
+      }
+
       /* Views */
       .view {
         display: none;
@@ -205,12 +234,102 @@
         transform: translate(-1px, -1px);
         box-shadow: 3px 3px 0px 0px rgba(255,255,255,1);
       }
+
+      /* ======================= */
+      /* Stage 2: Budget View    */
+      /* ======================= */
+      .budget-input-row {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 12px;
+        align-items: stretch;
+      }
+      .budget-input {
+        border: 3px solid black;
+        background: white;
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 6px 8px;
+        box-shadow: 2px 2px 0 black;
+        outline: none;
+        flex: 1;
+      }
+      .budget-input:focus { border-color: #3b82f6; }
+      .budget-input-mins { width: 52px; flex: none; }
+      .budget-add-btn {
+        background: black;
+        color: white;
+        border: 3px solid black;
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 900;
+        padding: 6px 12px;
+        cursor: pointer;
+        text-transform: uppercase;
+        box-shadow: 2px 2px 0 #fff;
+        transition: all 0.1s;
+      }
+      .budget-add-btn:hover { transform: translate(-1px,-1px); box-shadow: 3px 3px 0 #fff; }
+
+      #budget-list {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+      .budget-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: white;
+        border: 2px solid black;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 700;
+        box-shadow: 2px 2px 0 black;
+      }
+      .budget-item-delete {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 900;
+        color: #ef4444;
+        padding: 0 4px;
+      }
+      .budget-empty {
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 700;
+        text-align: center;
+        padding: 16px 0;
+        border: 2px dashed #cbd5e1;
+      }
+      .budget-clear-link {
+        text-align: center;
+        font-size: 11px;
+        color: #64748b;
+        text-decoration: underline;
+        cursor: pointer;
+        padding-top: 4px;
+        font-weight: 700;
+      }
     </style>
   </head>
   <body>
     <div class="header-bar"></div>
     
     <div class="container">
+      <!-- STAGE 2: NAV TABS -->
+      <div class="nav-tabs" id="main-nav">
+        <button class="nav-tab active" data-target="view-intent">INTENT</button>
+        <button class="nav-tab" data-target="view-dashboard">DASHBOARD</button>
+        <button class="nav-tab" data-target="view-budgets">BUDGETS</button>
+      </div>
+
       <!-- VIEW: INTENT SELECTION -->
       <div id="view-intent" class="view active">
         <h1>Welcome Back</h1>
@@ -221,6 +340,7 @@
           <button class="intent-btn" data-intent="PRODUCTIVITY">Productivity <span>⚡</span></button>
           <button class="intent-btn" data-intent="TUTORIAL">Learning / Tutorial <span>🧠</span></button>
           <button class="intent-btn" data-intent="ENTERTAINMENT">Entertainment <span>🎬</span></button>
+          <button class="intent-btn" data-intent="PASSIVE" style="border-color:#94a3b8;color:#64748b;">Track Silently <span>👁️</span></button>
         </div>
       </div>
 
@@ -238,12 +358,30 @@
         </div>
         
         <div class="footer">
+          <button class="reset-btn" id="pomodoro-btn" style="margin-bottom: 8px; background: #ef4444;">🍅 START FOCUS</button><br/>
           <button class="reset-btn" id="reset-intent-btn" style="margin-bottom: 8px;">Change Intent</button><br/>
           <a href="http://localhost:3000/dashboard" target="_blank" style="color: black; font-weight: bold; font-size: 12px; text-decoration: none; padding: 4px; display: inline-block;">Open Dashboard ↗</a>
         </div>
+      </div>
+
+      <!-- STAGE 2: VIEW: BUDGETS -->
+      <div id="view-budgets" class="view">
+        <h1>Budgets</h1>
+        <p class="subtitle">Set daily time limits per site. We'll block you when you hit the limit.</p>
+
+        <div class="budget-input-row">
+          <input id="budget-domain-input" class="budget-input" type="text" placeholder="youtube.com" />
+          <input id="budget-mins-input" class="budget-input budget-input-mins" type="number" placeholder="30" min="1" max="1440" />
+          <button id="budget-add-btn" class="budget-add-btn">ADD</button>
+        </div>
+
+        <div id="budget-list"></div>
+
+        <div class="budget-clear-link" id="budget-clear-all">Clear all</div>
       </div>
     </div>
 
     <script type="module" src="./popup.ts"></script>
   </body>
 </html>
+

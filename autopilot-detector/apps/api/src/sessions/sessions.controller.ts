@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Body, UseGuards, Req } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SessionsService } from './sessions.service';
 
@@ -30,4 +30,15 @@ export class SessionsController {
   async getSessionScores(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.sessionsService.getSessionScores(id, req.user.id);
   }
+
+  // Stage 2: Save post-session mood rating
+  @Patch(':id/mood')
+  async saveMood(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { moodRating: number },
+  ) {
+    return this.sessionsService.saveMoodRating(id, req.user.id, body.moodRating);
+  }
 }
+

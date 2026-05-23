@@ -11,4 +11,10 @@ export class AnalyticsController {
   async getWeeklyHeatmap(@Req() req: { user: { id: string } }) {
     return this.analyticsService.getWeeklyHeatmap(req.user.id);
   }
+
+  // Stage 2: Mood × Drift correlation data for scatter chart
+  @Get('mood-correlation')
+  async getMoodCorrelation(@Req() req: { user: { id: string } }) {
+    return this.analyticsService.getMoodCorrelation(req.user.id);
+  }
 }

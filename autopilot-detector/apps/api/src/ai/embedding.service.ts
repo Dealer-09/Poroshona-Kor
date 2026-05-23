@@ -93,11 +93,16 @@ export class EmbeddingService {
     this.logger.log(`Storing embedding for session ${sessionId}...`);
     const vectorString = `[${embedding.join(',')}]`;
 
-    // Upsert or insert via raw SQL for pgvector
+    // Delete any existing embedding for this session first (upsert semantics
+    // without needing a UNIQUE constraint on sessionId)
+    await this.prisma.$executeRaw`
+      DELETE FROM "SessionEmbedding" WHERE "sessionId" = ${sessionId}::uuid
+    `;
+
+    // Insert the new embedding
     await this.prisma.$executeRaw`
       INSERT INTO "SessionEmbedding" ("id", "sessionId", "embedding")
       VALUES (gen_random_uuid(), ${sessionId}::uuid, ${vectorString}::vector)
-      ON CONFLICT ("sessionId") DO UPDATE SET "embedding" = EXCLUDED."embedding"
     `;
   }
 

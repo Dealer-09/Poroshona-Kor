@@ -88,4 +88,18 @@ export class AnalyticsService {
 
     return result;
   }
+
+  // Stage 2: Mood × Drift correlation for scatter chart
+  async getMoodCorrelation(userId: string) {
+    return this.prisma.moodEntry.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+      select: {
+        moodRating: true,
+        avgScore: true,
+        createdAt: true,
+      },
+    });
+  }
 }

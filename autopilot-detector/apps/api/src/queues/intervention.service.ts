@@ -79,35 +79,41 @@ export class InterventionService {
       )
       .join(' | ');
 
-    // 4. Build RAG prompt
-    const systemPrompt =
-      'You are a strict, smart digital wellbeing coach. The user is currently DISTRACTED and in "autopilot" mode. Do NOT praise their focus, autonomy, or work under any circumstances. You must contextually and firmly nudge them to return to their declared focus goal. Be extremely concise, direct, and max 2 sentences.';
+    // 4. Build context-rich RAG prompt (Stage 2 upgrade)
+    // Extract the most recent signal context
+    const latestSignal = signals[signals.length - 1];
+    const activeDomain = latestSignal?.activeDomain || session.appOpened || 'the browser';
+    const activeTabTitle = latestSignal?.activeTabTitle || session.pageTitle || '';
+    const pageResetRate = (
+      signals.reduce((acc, s) => acc + (s.pageResetCount ?? 0), 0) /
+      Math.max(0.1, (new Date().getTime() - session.startedAt.getTime()) / 60000)
+    ).toFixed(1);
 
-    let userPrompt = `The user declared their intent to study/work on: "${session.declaredIntent}".\n`;
-    if (session.pageTitle) {
-      userPrompt += `However, they are currently wasting time watching/viewing: "${session.pageTitle}"`;
-      if (session.pageCategory) {
-        userPrompt += ` (Genre/Category: ${session.pageCategory})`;
-      }
-      userPrompt += `.\n`;
-    }
-    userPrompt += `Their distraction autopilot score is: ${score}/100 (which is extremely high and bad!).\n`;
-    userPrompt += `Past RAG context logs: ${pastOutcomes || 'No previous interventions'}.\n`;
-    userPrompt += `Write a highly relevant, firm nudge encouraging them to get back to their declared goal: "${session.declaredIntent}".`;
-
-    // 5. Determine type and best Groq model dynamically
+    // Determine intervention type first so we can reference it in the prompt
     let type = InterventionType.NUDGE;
-    let modelToUse = 'llama-3.1-8b-instant'; // Ultra-fast default model
-
+    let modelToUse = 'llama-3.1-8b-instant';
     if (score > 85) {
       type = InterventionType.REFLECTION;
-      modelToUse = 'llama-3.3-70b-versatile'; // Use high-reasoning 70B model for deep cognitive breaks!
+      modelToUse = 'llama-3.3-70b-versatile';
     } else if (score > 75) {
       type = InterventionType.PAUSE;
     }
 
-    // 6. Call Groq API
-    let message = 'You seem to be scrolling aimlessly. Time for a quick break?';
+    const systemPrompt =
+      'You are the Autopilot Detector intervention engine. Generate ONE short, punchy intervention message (max 15 words). Be specific — use the exact domain and intent provided. Be firm but non-judgmental. No emojis. No quotes around the output.';
+
+    const userPrompt = `User said they opened the browser to: ${session.declaredIntent}.
+They are currently on: ${activeDomain}${activeTabTitle ? ` ("${activeTabTitle}")` : ''}.
+Their cognitive drift score is ${score}/100.
+They have refreshed the infinite scroll ${pageResetRate} times per minute.
+Past session context: ${pastOutcomes || 'No previous sessions'}.
+Intervention type: ${type}.
+Generate the intervention message.`;
+
+    this.logger.log(`Prompt context: domain=${activeDomain}, intent=${session.declaredIntent}, type=${type}`);
+
+    // 5. Call Groq API
+    let message = `You said ${session.declaredIntent?.toLowerCase() || 'focus'}. ${activeDomain} says otherwise. Score: ${score}.`;
     try {
       const groqClient = await this.getGroqClient(session.userId);
       const chatCompletion = await groqClient.chat.completions.create({
@@ -116,11 +122,11 @@ export class InterventionService {
           { role: 'user', content: userPrompt },
         ],
         model: modelToUse,
-        max_tokens: 150,
+        max_tokens: 60,
       });
 
       if (chatCompletion.choices[0]?.message?.content) {
-        message = chatCompletion.choices[0].message.content;
+        message = chatCompletion.choices[0].message.content.trim();
       }
     } catch (error) {
       this.logger.error(
@@ -149,10 +155,6 @@ export class InterventionService {
         intervention,
       }),
     );
-
-    // Set the cooldown timestamp in Redis only AFTER successful creation and broadcast!
-    const lastInterventionKey = `user:${session.userId}:lastIntervention`;
-    await redis.set(lastInterventionKey, Date.now().toString());
 
     return intervention;
   }

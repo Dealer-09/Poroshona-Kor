@@ -93,7 +93,7 @@ export function DriftTimeline({ sessionId }: DriftTimelineProps) {
       <h3 className="text-xl font-black uppercase mb-4 bg-black text-white px-3 py-1 inline-block self-start">
         Drift Timeline
       </h3>
-      <div className="flex-1 min-h-[300px]">
+      <div className="flex-1 min-h-[300px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#000" vertical={false} />
