@@ -158,6 +158,20 @@ let socket: Socket | null = null;
 let currentSessionId: string | null = null;
 let currentIntent: string | null = null;
 
+function isJwtExpired(token: string) {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return true;
+
+    const payload = JSON.parse(atob(parts[1]));
+    if (typeof payload.exp !== "number") return true;
+
+    return payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
 
 function startPomodoro() {
   isPomodoroActive = true;
@@ -193,6 +207,12 @@ const connectWebSocket = async () => {
 
   if (!token) {
     console.warn("No auth token. Please log in via the dashboard.");
+    return;
+  }
+
+  if (isJwtExpired(token)) {
+    console.warn("Stored auth token expired. Clearing extension auth state.");
+    await chrome.storage.local.remove(["accessToken"]);
     return;
   }
 

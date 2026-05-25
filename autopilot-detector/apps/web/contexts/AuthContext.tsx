@@ -3,6 +3,20 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+function isJwtExpired(token: string) {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return true;
+
+    const payload = JSON.parse(atob(parts[1]));
+    if (typeof payload.exp !== "number") return true;
+
+    return payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
 interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
@@ -20,6 +34,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Check local storage on mount
     const storedToken = localStorage.getItem("access_token");
     if (storedToken) {
+      if (isJwtExpired(storedToken)) {
+        localStorage.removeItem("access_token");
+        document.cookie = "access_token=; path=/; max-age=0";
+        return;
+      }
+
       setToken(storedToken);
       // Broadcast to Chrome Extension Content Script
       window.postMessage({ type: "AUTOPILOT_AUTH_TOKEN", token: storedToken }, "*");
@@ -30,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(newToken);
     localStorage.setItem("access_token", newToken);
     // Also set as cookie for Next.js middleware to read
-    document.cookie = `access_token=${newToken}; path=/; max-age=${60 * 60 * 24 * 7}`;
+    document.cookie = `access_token=${newToken}; path=/; max-age=${60 * 60 * 24 * 365}`;
     
     // Broadcast to Chrome Extension Content Script immediately
     window.postMessage({ type: "AUTOPILOT_AUTH_TOKEN", token: newToken }, "*");
