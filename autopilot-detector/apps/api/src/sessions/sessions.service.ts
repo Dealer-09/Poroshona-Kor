@@ -82,14 +82,10 @@ export class SessionsService {
 
     // Validate mood rating range
     if (moodRating < 1 || moodRating > 5 || !Number.isInteger(moodRating)) {
-      throw new BadRequestException('moodRating must be an integer between 1 and 5');
+      throw new BadRequestException(
+        'moodRating must be an integer between 1 and 5',
+      );
     }
-
-    // Update moodRating on Session
-    await this.prisma.session.update({
-      where: { id: sessionId },
-      data: { moodRating },
-    });
 
     // Calculate average autopilot score for this session
     const scores = await this.prisma.autopilotScore.findMany({
@@ -102,13 +98,82 @@ export class SessionsService {
         ? scores.reduce((sum, s) => sum + s.score, 0) / scores.length
         : 0;
 
-    // Upsert MoodEntry for the correlation chart
-    await this.prisma.moodEntry.upsert({
+    // Atomically: update the session mood AND upsert the MoodEntry so the two
+    // sources of truth can't diverge (previously two separate writes).
+    await this.prisma.$transaction([
+      this.prisma.session.update({
+        where: { id: sessionId },
+        data: { moodRating },
+      }),
+      this.prisma.moodEntry.upsert({
+        where: { sessionId },
+        update: { moodRating, avgScore },
+        create: { userId, sessionId, moodRating, avgScore },
+      }),
+    ]);
+
+    // Stage 3: the mood rating is the weak supervision signal — now that it's in,
+    // compute per-step onset labels for this session's event sequence so it can
+    // be used to train the prediction model. Best-effort; never fail the request.
+    try {
+      const updated = await this.labelSessionEvents(sessionId, moodRating);
+      return { ok: true, moodRating, avgScore, labeledEvents: updated };
+    } catch {
+      return { ok: true, moodRating, avgScore };
+    }
+  }
+
+  /**
+   * Weak-labeling pass for onset prediction.
+   *
+   * A step is a POSITIVE example (`onsetLabel = true`) iff the session was rated
+   * poorly (mood ≤ 3) AND, within the next ONSET_HORIZON_MS, the drift crosses and
+   * stays above ONSET_DRIFT_THRESHOLD — i.e. this timestep sits in the run-up to a
+   * doomscroll onset. Otherwise it's a NEGATIVE example. Well-rated sessions
+   * (mood ≥ 4) are all negatives (a "good" session by definition had no bad onset).
+   */
+  private async labelSessionEvents(
+    sessionId: string,
+    moodRating: number,
+  ): Promise<number> {
+    const ONSET_DRIFT_THRESHOLD = 60; // drift considered "in autopilot"
+    const ONSET_HORIZON_MS = 5 * 60 * 1000; // look-ahead window: 5 minutes
+    const SUSTAIN_COUNT = 2; // need ≥2 consecutive high-drift steps to count as onset
+
+    const events = await this.prisma.sessionEvent.findMany({
       where: { sessionId },
-      update: { moodRating, avgScore },
-      create: { userId, sessionId, moodRating, avgScore },
+      orderBy: { timestamp: 'asc' },
+      select: { id: true, timestamp: true, runningDrift: true },
+    });
+    if (events.length === 0) return 0;
+
+    const sessionWasBad = moodRating <= 3;
+
+    const updates = events.map((ev, i) => {
+      let onsetLabel = false;
+      if (sessionWasBad) {
+        const horizonEnd = ev.timestamp.getTime() + ONSET_HORIZON_MS;
+        let consecutive = 0;
+        for (let j = i + 1; j < events.length; j++) {
+          if (events[j].timestamp.getTime() > horizonEnd) break;
+          if (events[j].runningDrift >= ONSET_DRIFT_THRESHOLD) {
+            consecutive++;
+            if (consecutive >= SUSTAIN_COUNT) {
+              onsetLabel = true;
+              break;
+            }
+          } else {
+            consecutive = 0;
+          }
+        }
+      }
+      return this.prisma.sessionEvent.update({
+        where: { id: ev.id },
+        data: { onsetLabel },
+      });
     });
 
-    return { ok: true, moodRating, avgScore };
+    await this.prisma.$transaction(updates);
+    return updates.length;
   }
 }

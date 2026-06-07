@@ -1,5 +1,6 @@
 import { LiveScoreWidget } from "@/components/LiveScoreWidget";
 import { DriftTimeline } from "@/components/DriftTimeline";
+import { OnsetRiskWidget } from "@/components/OnsetRiskWidget";
 import { cookies } from "next/headers";
 
 async function getCurrentSessionId() {
@@ -39,22 +40,13 @@ export default async function DashboardPage() {
         </div>
         
         <div className="neo-card p-6 min-h-[300px] flex flex-col justify-between">
-          <div>
-            <h3 className="font-black text-2xl uppercase mb-2 bg-neo-primary text-white px-2 py-1 inline-block">STATUS</h3>
-            <div className="mt-4 space-y-4">
-              <div className="flex justify-between items-center border-b-2 border-black pb-2">
-                <span className="font-bold">SYSTEM</span>
-                <span className="font-black text-neo-primary">ONLINE</span>
-              </div>
-              <div className="flex justify-between items-center border-b-2 border-black pb-2">
-                <span className="font-bold">INTERVENTIONS</span>
-                <span className="font-black text-neo-accent">ACTIVE</span>
-              </div>
+          <OnsetRiskWidget />
+
+          <div className="mt-6 space-y-3">
+            <div className="flex justify-between items-center border-b-2 border-black pb-2">
+              <span className="font-bold">SYSTEM</span>
+              <span className="font-black text-neo-primary">ONLINE</span>
             </div>
-          </div>
-          
-          <div className="mt-8">
-            <button className="neo-btn-accent w-full text-lg">RUN DIAGNOSTICS</button>
           </div>
         </div>
       </div>

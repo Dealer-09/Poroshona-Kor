@@ -48,6 +48,7 @@ model Session {
   scores         AutopilotScore[]
   interventions  Intervention[]
   embeddings     SessionEmbedding[]
+  events         SessionEvent[]
   moodEntry      MoodEntry?
 }
 
@@ -77,6 +78,40 @@ model SessionEmbedding {
   sessionId String                    @db.Uuid
   session   Session                   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   embedding Unsupported("vector(512)")
+}
+
+// Stage 3: per-timestep behavioral event log — the durable training sequence for
+// the onset-prediction model. One row per persisted signal. The Redis buffer is
+// the hot working memory; this is the permanent record the LSTM learns from.
+// Column set / order is mirrored by PredictionFeature (prediction.service.ts) and
+// apps/ml/train.py FEATURE_ORDER — keep them in sync.
+model SessionEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  sessionId String   @db.Uuid
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  timestamp DateTime
+
+  // raw signal features
+  scrollVelocity     Float
+  tabSwitchCount     Int
+  clickRate          Float
+  passiveTime        Float
+  activeTime         Float
+  scrollDepthPercent Float?
+  pageResetCount     Int?
+  activeDomain       String?
+  contentType        String? // from classification when available
+
+  // derived / contextual features
+  secondsSinceIntent Int // time since session.startedAt
+  hourOfDay          Int
+  runningDrift       Float // the (corrected) drift score at this step, 0–100
+  isPomodoroBreak    Boolean @default(false)
+
+  // weak label (filled post-session from mood + score trajectory)
+  onsetLabel Boolean? // did doomscroll onset occur within ~5 min after this step
+
+  @@index([sessionId, timestamp])
 }
 
 // Stage 2: Post-session mood tracking for correlation chart

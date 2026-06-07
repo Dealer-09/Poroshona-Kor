@@ -192,6 +192,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     createInterventionOverlay(message.payload.message, "PAUSE", message.payload.sessionId, message.payload.intent);
   } else if (message.type === "TRIGGER_REFLECTION_OVERLAY") {
     createInterventionOverlay(message.payload.message, "REFLECTION", message.payload.sessionId, message.payload.intent);
+  } else if (message.type === "TRIGGER_PREEMPTIVE_NUDGE") {
+    // Stage 3: forward-looking warning — a lighter "PAUSE"-style banner shown
+    // BEFORE onset, driven by the prediction model rather than the current score.
+    createInterventionOverlay(message.payload.message, "PAUSE", message.payload.sessionId, message.payload.intent);
   } else if (message.type === "SHOW_MOOD_CHECK") {
     // Stage 2: Post-session mood check overlay
     createMoodOverlay();

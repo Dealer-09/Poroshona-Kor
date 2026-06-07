@@ -19,5 +19,19 @@ export function validateEnv(env: Record<string, string | undefined>) {
     );
   }
 
+  // ENCRYPTION_SECRET is hashed to a 32-byte key (so any length technically
+  // works), but a short secret is weak. Warn loudly rather than failing.
+  const encSecret = env['ENCRYPTION_SECRET'] ?? '';
+  if (encSecret.length < 16) {
+    console.warn(
+      `[env] ENCRYPTION_SECRET is only ${encSecret.length} chars — use at least 32 random chars for production.`,
+    );
+  }
+  if ((env['JWT_SECRET'] ?? '').length < 16) {
+    console.warn(
+      '[env] JWT_SECRET is short — use a long, random value for production.',
+    );
+  }
+
   return env;
 }

@@ -23,9 +23,21 @@ export interface AutopilotScore {
   cognitiveDrift: number;
   doomscrollProbability: number;
   timestamp: string;
+  sessionId?: string;       // set when emitted over the socket so clients can filter by session
   // Stage 2: Infinite scroll aggregate metrics
   scrollDepthAvg?: number;  // average scroll depth across signals in this batch (0–100)
   pageResetRate?: number;   // resets per minute, signals infinite scroll looping
+}
+
+// Stage 3: Forward-looking onset prediction (the "warning system").
+// Unlike AutopilotScore which describes the CURRENT state, this is a probability
+// that doomscroll/autopilot onset will occur within `horizonMinutes`.
+export interface OnsetPrediction {
+  sessionId: string;
+  probability: number;       // 0–1 likelihood of onset within the horizon
+  horizonMinutes: number;    // prediction horizon (currently 5)
+  source: 'heuristic' | 'lstm';
+  timestamp: string;
 }
 
 export interface InterventionEvent {

@@ -36,3 +36,12 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Redis snapshots (runtime data — may contain real session signals)
+*.rdb
+
+# Python (apps/ml)
+__pycache__/
+*.pyc
+.venv/
+venv/

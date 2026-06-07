@@ -21,8 +21,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  onModuleDestroy() {
-    this.redisClient.disconnect();
+  async onModuleDestroy() {
+    // Graceful close: quit() flushes pending commands before disconnecting,
+    // unlike disconnect() which drops them mid-flight.
+    try {
+      await this.redisClient.quit();
+    } catch {
+      this.redisClient.disconnect();
+    }
   }
 
   getClient(): Redis {

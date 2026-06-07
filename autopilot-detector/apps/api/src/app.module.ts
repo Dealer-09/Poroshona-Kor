@@ -30,10 +30,17 @@ import { UsersModule } from './users/users.module';
         },
       }),
     }),
-    BullBoardModule.forRoot({
-      route: '/admin/queues',
-      adapter: ExpressAdapter,
-    }),
+    // BullBoard exposes raw queue job payloads (sessionIds, signal streams) with
+    // no auth, so only mount the dashboard when explicitly enabled (e.g. local
+    // dev). In production leave ENABLE_BULL_BOARD unset.
+    ...(process.env.ENABLE_BULL_BOARD === 'true'
+      ? [
+          BullBoardModule.forRoot({
+            route: '/admin/queues',
+            adapter: ExpressAdapter,
+          }),
+        ]
+      : []),
     PrismaModule,
     RedisModule,
     AuthModule,

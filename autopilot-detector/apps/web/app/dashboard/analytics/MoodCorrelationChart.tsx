@@ -39,7 +39,9 @@ interface CustomTooltipProps {
 
 function CustomTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
-  const d = payload[0].payload;
+  const first = payload[0];
+  if (!first) return null;
+  const d = first.payload;
   const date = new Date(d.createdAt).toLocaleDateString('en-IN', {
     month: 'short',
     day: 'numeric',

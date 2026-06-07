@@ -8,9 +8,17 @@ import { QueuesModule } from '../queues/queues.module';
 import { InterventionTimingService } from './intervention-timing.service';
 import { ContentClassificationService } from './content-classification.service';
 import { UsersModule } from '../users/users.module';
+import { PredictionModule } from '../prediction/prediction.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, RedisModule, QueuesModule, UsersModule],
+  imports: [
+    AuthModule,
+    PrismaModule,
+    RedisModule,
+    QueuesModule,
+    UsersModule,
+    PredictionModule,
+  ],
   providers: [
     SignalsGateway,
     AutopilotScoreService,

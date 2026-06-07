@@ -5,20 +5,24 @@ import * as crypto from 'crypto';
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
-  // In production, this MUST come from an environment variable (32 bytes)
   private readonly algorithm = 'aes-256-gcm';
-  private readonly secretKey = process.env.ENCRYPTION_SECRET as string;
+  // aes-256-gcm requires a 32-byte key. Derive it deterministically from
+  // ENCRYPTION_SECRET via SHA-256 so ANY secret length works (previously
+  // `Buffer.from(secret)` threw "Invalid key length" unless the secret was
+  // exactly 32 bytes). NOTE: changing this derivation invalidates ciphertext
+  // produced by the old raw-bytes key — decrypt() degrades gracefully (returns
+  // '') for those, and users simply re-enter their API keys once.
+  private readonly key = crypto
+    .createHash('sha256')
+    .update(String(process.env.ENCRYPTION_SECRET ?? ''))
+    .digest();
 
   constructor(private readonly prisma: PrismaService) {}
 
   private encrypt(text: string): string {
     try {
-      const iv = crypto.randomBytes(16);
-      const cipher = crypto.createCipheriv(
-        this.algorithm,
-        Buffer.from(this.secretKey),
-        iv,
-      );
+      const iv = crypto.randomBytes(12); // 12 bytes is the standard GCM nonce size
+      const cipher = crypto.createCipheriv(this.algorithm, this.key, iv);
       let encrypted = cipher.update(text, 'utf8', 'hex');
       encrypted += cipher.final('hex');
       const authTag = cipher.getAuthTag().toString('hex');
@@ -37,11 +41,7 @@ export class UsersService {
       const iv = Buffer.from(parts[0], 'hex');
       const authTag = Buffer.from(parts[1], 'hex');
       const encryptedText = parts[2];
-      const decipher = crypto.createDecipheriv(
-        this.algorithm,
-        Buffer.from(this.secretKey),
-        iv,
-      );
+      const decipher = crypto.createDecipheriv(this.algorithm, this.key, iv);
       decipher.setAuthTag(authTag);
       let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
       decrypted += decipher.final('utf8');

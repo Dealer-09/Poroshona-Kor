@@ -89,10 +89,15 @@ export class InterventionService {
       Math.max(0.1, (new Date().getTime() - session.startedAt.getTime()) / 60000)
     ).toFixed(1);
 
-    // Determine intervention type first so we can reference it in the prompt
+    // Determine intervention type first so we can reference it in the prompt.
+    // Highest tier first: a very high drift score escalates to SLEEP_MODE (the
+    // most serious intervention) — previously this enum value was never emitted.
     let type = InterventionType.NUDGE;
     let modelToUse = 'llama-3.1-8b-instant';
-    if (score > 85) {
+    if (score > 90) {
+      type = InterventionType.SLEEP_MODE;
+      modelToUse = 'llama-3.3-70b-versatile';
+    } else if (score > 85) {
       type = InterventionType.REFLECTION;
       modelToUse = 'llama-3.3-70b-versatile';
     } else if (score > 75) {

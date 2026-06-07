@@ -44,7 +44,7 @@ export class EmbeddingService {
     const aiClient = await this.getAiClient(session.userId);
 
     const response = await aiClient.models.embedContent({
-      model: 'gemini-embedding-2',
+      model: 'gemini-embedding-001',
       contents: summary,
       config: {
         outputDimensionality: 512,
@@ -70,7 +70,7 @@ export class EmbeddingService {
     const aiClient = await this.getAiClient(userId);
 
     const response = await aiClient.models.embedContent({
-      model: 'gemini-embedding-2',
+      model: 'gemini-embedding-001',
       contents: text,
       config: {
         outputDimensionality: 512,
@@ -130,12 +130,20 @@ export class EmbeddingService {
     }
 
     const sessionIds = similarEmbeddings.map((e) => e.sessionId);
-    return this.prisma.session.findMany({
+    const sessions = await this.prisma.session.findMany({
       where: { id: { in: sessionIds } },
       include: {
         interventions: true,
       },
     });
+
+    // `findMany({ in })` does NOT preserve the cosine-distance ordering from the
+    // raw query, so re-sort by the ranked `sessionIds` to keep "most similar"
+    // first (the RAG prompt and "Session 1/2/3" labeling depend on this order).
+    const rank = new Map(sessionIds.map((id, i) => [id, i]));
+    return sessions.sort(
+      (a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0),
+    );
   }
 
   private createSessionSummary(

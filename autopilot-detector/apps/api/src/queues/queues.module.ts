@@ -36,14 +36,20 @@ import { UsersModule } from '../users/users.module';
         },
       },
     }),
-    BullBoardModule.forFeature({
-      name: 'ai-intervention',
-      adapter: BullMQAdapter,
-    }),
-    BullBoardModule.forFeature({
-      name: 'embedding',
-      adapter: BullMQAdapter,
-    }),
+    // Only register the BullBoard feature panels when the dashboard is mounted
+    // (see app.module.ts ENABLE_BULL_BOARD gate); forFeature without forRoot fails.
+    ...(process.env.ENABLE_BULL_BOARD === 'true'
+      ? [
+          BullBoardModule.forFeature({
+            name: 'ai-intervention',
+            adapter: BullMQAdapter,
+          }),
+          BullBoardModule.forFeature({
+            name: 'embedding',
+            adapter: BullMQAdapter,
+          }),
+        ]
+      : []),
   ],
   providers: [InterventionService, AiInterventionProcessor, EmbeddingProcessor],
   exports: [BullModule, InterventionService],

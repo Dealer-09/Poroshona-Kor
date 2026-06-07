@@ -8,7 +8,10 @@ function isJwtExpired(token: string) {
     const parts = token.split(".");
     if (parts.length !== 3) return true;
 
-    const payload = JSON.parse(atob(parts[1]));
+    const payloadPart = parts[1] ?? "";
+    if (!payloadPart) return true;
+
+    const payload = JSON.parse(atob(payloadPart));
     if (typeof payload.exp !== "number") return true;
 
     return payload.exp * 1000 <= Date.now();

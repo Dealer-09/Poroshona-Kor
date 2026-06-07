@@ -5,6 +5,12 @@ import { ContentClassification } from './content-classification.service';
 @Injectable()
 export class AutopilotScoreService {
   private readonly MAX_SCROLL_VELOCITY = 5000;
+  // The extension emits ~2 signals per batch roughly every 4s, i.e. one signal
+  // every ~2s. Used to estimate the time window when timestamps are degenerate.
+  private readonly APPROX_SECONDS_PER_SIGNAL = 2;
+  // Minimum window (minutes) for rate-per-minute extrapolation, so short bursts
+  // don't blow up into fake doomscroll signals.
+  private readonly RESET_RATE_MIN_WINDOW = 0.5;
 
   computeScore(
     signals: BehavioralSignal[],
@@ -25,11 +31,17 @@ export class AutopilotScoreService {
       1,
     );
 
-    // 2. Time Window
+    // 2. Time Window (true elapsed time across the signal window)
     const firstTime = new Date(signals[0].timestamp).getTime();
     const lastTime = new Date(signals[signals.length - 1].timestamp).getTime();
     let timeWindowMinutes = (lastTime - firstTime) / 60000;
-    if (timeWindowMinutes <= 0) timeWindowMinutes = 0.1; // fallback to avoid division by zero
+    // When the window is degenerate (single timestamp / clock skew), estimate it
+    // from the number of signals (~APPROX_SECONDS_PER_SIGNAL apart) instead of an
+    // arbitrary tiny constant.
+    if (timeWindowMinutes <= 0) {
+      timeWindowMinutes =
+        (signals.length * this.APPROX_SECONDS_PER_SIGNAL) / 60;
+    }
 
     // Stage 2: Scroll depth + page reset aggregates
     const scrollDepthAvg =
@@ -39,7 +51,16 @@ export class AutopilotScoreService {
       (acc, s) => acc + (s.pageResetCount ?? 0),
       0,
     );
-    const pageResetRate = totalPageResets / timeWindowMinutes; // resets per minute
+    // resets per minute. Floor the rate-computation window at RESET_RATE_MIN_WINDOW
+    // so a single isolated reset in a sub-minute batch can't extrapolate into a
+    // fake doomscroll spike (the OLD code divided by 0.1 → ×10). The doomscroll
+    // branch treats >2 resets/min as significant, so this floor means you need a
+    // genuine cluster of resets, not one, to register.
+    const rateWindowMinutes = Math.max(
+      timeWindowMinutes,
+      this.RESET_RATE_MIN_WINDOW,
+    );
+    const pageResetRate = totalPageResets / rateWindowMinutes;
 
     // 3. Focus Fragmentation (Tab Switch Rate)
     // tabSwitchCount is an absolute counter from the extension.
@@ -104,6 +125,13 @@ export class AutopilotScoreService {
 
     let doomscrollProbability = 0;
 
+    // NOTE: `passiveRatio` (computed above) is the RAW passive ratio and is
+    // returned as a sub-score / persisted as an ML feature — it must NEVER be
+    // mutated. The intent-penalty matrix below "forgives" passive time only for
+    // the purpose of computing `doomscrollProbability`, so it works on a LOCAL
+    // `adjustedPassive` copy. cognitiveDrift is likewise derived from the raw
+    // passiveRatio further down.
+
     // Apply Contextual Intent Penalty Matrix
     if (intent === AppIntent.STUDY) {
       const contentType = classification?.contentType;
@@ -112,9 +140,9 @@ export class AutopilotScoreService {
       if (contentType === 'lecture' || contentType === 'tutorial') {
         // Watching a relevant educational video — passive time is fully forgiven.
         // But fast scroll (e.g. skipping through comments) still counts.
-        passiveRatio = passiveRatio * 0.05;
+        const adjustedPassive = passiveRatio * 0.05;
         doomscrollProbability =
-          passiveRatio * 0.3 +
+          adjustedPassive * 0.3 +
           focusFragmentation * 0.4 +
           scrollVelocityNormalized * 0.5;
       } else if (contentType === 'reading') {
@@ -128,9 +156,9 @@ export class AutopilotScoreService {
             passiveRatio * 0.4 + focusFragmentation * 0.3 + 0.1; // flat bump for idle staring
         } else {
           // Actively reading / slow-scrolling — fully forgiven
-          passiveRatio = passiveRatio * 0.2;
+          const adjustedPassive = passiveRatio * 0.2;
           doomscrollProbability =
-            passiveRatio * 0.3 +
+            adjustedPassive * 0.3 +
             focusFragmentation * 0.3 +
             scrollVelocityNormalized * 0.2;
         }
@@ -150,11 +178,9 @@ export class AutopilotScoreService {
         doomscrollProbability = doomscrollProbability * 1.5 + 0.2;
       } else {
         // Unknown content type — fall back to domain-based rules
-        if (isStudyDomain) {
-          passiveRatio = passiveRatio * 0.4;
-        }
+        const adjustedPassive = isStudyDomain ? passiveRatio * 0.4 : passiveRatio;
         doomscrollProbability =
-          passiveRatio * 0.75 +
+          adjustedPassive * 0.75 +
           focusFragmentation * 0.25 +
           scrollVelocityNormalized * 0.3;
         // If domain looks like entertainment but classification unknown, still penalize
@@ -168,9 +194,9 @@ export class AutopilotScoreService {
 
       if (contentType === 'tutorial' || contentType === 'lecture') {
         // Watching a relevant tutorial/lecture video — fully forgiven
-        passiveRatio = passiveRatio * 0.15;
+        const adjustedPassive = passiveRatio * 0.15;
         doomscrollProbability =
-          passiveRatio * 0.3 +
+          adjustedPassive * 0.3 +
           focusFragmentation * 0.3 +
           scrollVelocityNormalized * 0.3;
       } else if (contentType === 'gaming' || contentType === 'entertainment') {
@@ -214,7 +240,7 @@ export class AutopilotScoreService {
       }
     } else if (intent === AppIntent.ENTERTAINMENT) {
       // Staring passively is fine for entertainment
-      passiveRatio = passiveRatio * 0.1;
+      const adjustedPassive = passiveRatio * 0.1;
 
       // But catch the high-anxiety doomscroll / task-switch loop
       if (scrollVelocityNormalized > 0.4 && focusFragmentation > 0.3) {
@@ -222,7 +248,7 @@ export class AutopilotScoreService {
           (focusFragmentation * 0.6 + scrollVelocityNormalized * 0.6) * 1.4;
       } else {
         doomscrollProbability =
-          passiveRatio * 0.5 +
+          adjustedPassive * 0.5 +
           focusFragmentation * 0.25 +
           scrollVelocityNormalized * 0.3;
       }
@@ -258,10 +284,17 @@ export class AutopilotScoreService {
     // Keep within bounds [0, 1]
     doomscrollProbability = Math.max(0, Math.min(doomscrollProbability, 1.0));
 
-    // 5. Cognitive Drift (0-1)
+    // 5. Cognitive Drift (0-1) — derived from the RAW passiveRatio (not the
+    // intent-adjusted local used for doomscrollProbability above), so it remains
+    // a faithful, intent-independent measure suitable as an ML feature.
     const cognitiveDrift = focusFragmentation * 0.4 + passiveRatio * 0.6;
 
-    // 6. Score (0-100)
+    // 6. Score (0-100).
+    // NOTE: the headline score is currently exactly doomscrollProbability * 100.
+    // focusFragmentation / passiveRatio / cognitiveDrift are reported as
+    // independent sub-scores/features but do NOT (yet) blend into `score`.
+    // Downstream ML treats `score` (== runningDrift) and the sub-scores as
+    // separate features accordingly.
     const score = Math.round(doomscrollProbability * 100);
 
     return {
