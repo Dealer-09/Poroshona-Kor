@@ -140,11 +140,12 @@ def main() -> int:
     std = all_steps.std(axis=0)
     std[std == 0] = 1.0
 
-    def norm(seq: List[List[float]]) -> torch.Tensor:
-        arr = (np.array(seq, dtype=np.float32) - mean) / std
-        return torch.from_numpy(arr)
+    def to_tensor(seq: List[List[float]]) -> torch.Tensor:
+        # Feed RAW features — the model normalizes internally (see forward), so the
+        # exact same scaling path is exercised at train and inference time.
+        return torch.from_numpy(np.array(seq, dtype=np.float32))
 
-    X = [norm(s) for s in sequences]
+    X = [to_tensor(s) for s in sequences]
     # Sequence-level label = did onset happen anywhere in the session (any step).
     # (The per-step labels remain available for a finer per-timestep variant.)
     y = torch.tensor([1.0 if any(l) else 0.0 for l in labels], dtype=torch.float32)
@@ -162,8 +163,12 @@ def main() -> int:
             self.head = nn.Sequential(nn.Linear(hidden, 1), nn.Sigmoid())
 
         def forward(self, x):
-            # x: [batch, timesteps, features] — already-normalized at train time;
-            # at inference the API feeds raw features, so normalize here too.
+            # x: [batch, timesteps, features] in RAW feature units. Normalize here
+            # using the stored buffers so the SAME scaling applies whether the
+            # caller is the trainer or the API at inference (which feeds raw
+            # features). This makes the normalization part of the exported ONNX
+            # graph — without it, train/serve skew silently degrades the model.
+            x = (x - self.mean) / self.std
             out, _ = self.lstm(x)
             last = out[:, -1, :]  # last timestep's hidden state
             return self.head(last).squeeze(-1)

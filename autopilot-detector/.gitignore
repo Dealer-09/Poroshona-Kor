@@ -5,6 +5,12 @@ node_modules
 .pnp
 .pnp.js
 
+# This repo uses bun workspaces (bun.lock is the source of truth).
+# Ignore npm/yarn/pnpm lockfiles so an accidental `npm install` can't reintroduce them.
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
 # Local env files
 .env
 .env.local

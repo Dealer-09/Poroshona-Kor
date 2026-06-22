@@ -17,6 +17,7 @@ import {
   ParseArrayPipe,
   OnModuleInit,
   OnModuleDestroy,
+  Logger,
 } from '@nestjs/common';
 import { StartSessionDto, BehavioralSignalDto } from './dto/signals.dto';
 import { AutopilotScoreService } from './autopilot-score.service';
@@ -50,6 +51,8 @@ export class SignalsGateway
   @WebSocketServer()
   server: Server;
 
+  private readonly logger = new Logger(SignalsGateway.name);
+
   // Dedicated Redis connection for pub/sub (a subscriber connection cannot also
   // issue normal commands). Stored so it can be closed on shutdown.
   private interventionSubscriber: ReturnType<RedisService['getClient']> | null =
@@ -72,19 +75,21 @@ export class SignalsGateway
     this.interventionSubscriber = subscriber;
     await subscriber.subscribe('interventions');
     subscriber.on('message', (channel, message) => {
-      console.log(`📡 [RedisSub] Received message on channel "${channel}":`, message);
+      this.logger.debug(`[RedisSub] message on channel "${channel}"`);
       if (channel === 'interventions') {
         try {
           const payload = JSON.parse(message) as {
             userId: string;
             intervention: any;
           };
-          console.log(`📢 [RedisSub] Emitting "intervention:trigger" to room "user:${payload.userId}"!`);
+          this.logger.debug(
+            `[RedisSub] emitting intervention:trigger to room user:${payload.userId}`,
+          );
           this.server
             .to(`user:${payload.userId}`)
             .emit('intervention:trigger', payload.intervention);
         } catch (e) {
-          console.error('Failed to parse intervention message', e);
+          this.logger.error('Failed to parse intervention message', e as Error);
         }
       }
     });
@@ -119,10 +124,12 @@ export class SignalsGateway
       clientData.user = decoded;
 
       // Join user-specific room
-      console.log(`🔌 [Socket.io] Client connected: ${client.id}. Joining room "user:${decoded.sub}"`);
+      this.logger.debug(
+        `Client connected: ${client.id}, joining room user:${decoded.sub}`,
+      );
       void client.join(`user:${decoded.sub}`);
     } catch (e: any) {
-      console.error(`❌ [Socket.io] Connection auth failed:`, e.message);
+      this.logger.warn(`Connection auth failed: ${e.message}`);
       client.disconnect();
     }
   }
@@ -150,7 +157,7 @@ export class SignalsGateway
       },
     });
 
-    console.log(`🚀 New Session Started! Intent: ${payload.declaredIntent}`);
+    this.logger.debug(`New session started, intent: ${payload.declaredIntent}`);
     this.server
       .to(`user:${userId}`)
       .emit('session:created', { sessionId: session.id });
@@ -283,7 +290,7 @@ export class SignalsGateway
     // sequence record the prediction model learns from. Best-effort: never let a
     // persistence hiccup break the live scoring path.
     void this.persistSessionEvents(sessionId, signals).catch((e) =>
-      console.error('Failed to persist SessionEvents', e),
+      this.logger.error('Failed to persist SessionEvents', e as Error),
     );
 
     // Calculate score every 6 batches (~24 seconds at the extension's ~4s batch interval)
@@ -347,10 +354,7 @@ export class SignalsGateway
       );
 
       this.server.to(`user:${userId}`).emit('score:update', autopilotScore);
-      console.log(
-        '📈 LIVE SCORE COMPUTED:',
-        JSON.stringify(autopilotScore, null, 2),
-      );
+      this.logger.debug(`Live score computed: ${autopilotScore.score}`);
 
       // --- Phase 2: forward-looking onset prediction ---
       // Build a recent feature window and ask the PredictionService for the
@@ -385,7 +389,7 @@ export class SignalsGateway
           }
         }
       } catch (e) {
-        console.error('Prediction step failed (non-fatal):', e);
+        this.logger.error('Prediction step failed (non-fatal)', e as Error);
       }
 
       // Trigger AI Intervention job if score breaches the NUDGE threshold
