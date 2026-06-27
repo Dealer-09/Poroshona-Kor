@@ -17,24 +17,17 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto) {
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: registerDto.email },
-    });
-
-    if (existingUser) {
-      throw new ConflictException('Email already in use');
-    }
-
     const hashedPassword = await argon2.hash(registerDto.password);
-
-    const user = await this.prisma.user.create({
-      data: {
-        email: registerDto.email,
-        password: hashedPassword,
-      },
-    });
-
-    return this.generateToken(user.id, user.email);
+    try {
+      const user = await this.prisma.user.create({
+        data: { email: registerDto.email, password: hashedPassword },
+      });
+      return this.generateToken(user.id, user.email);
+    } catch (e: any) {
+      // ponytail: P2002 = unique constraint violation (email taken); atomic, no TOCTOU race
+      if (e?.code === 'P2002') throw new ConflictException('Email already in use');
+      throw e;
+    }
   }
 
   async login(loginDto: LoginDto) {

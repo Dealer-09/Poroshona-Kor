@@ -8,7 +8,6 @@ import { Queue } from 'bullmq';
 @Injectable()
 export class InterventionTimingService {
   private readonly logger = new Logger(InterventionTimingService.name);
-  private readonly COOLDOWN_MINUTES = 15;
 
   constructor(
     private readonly redisService: RedisService,
@@ -100,6 +99,8 @@ export class InterventionTimingService {
         shouldTrigger = true; // PAUSE
       } else if (score > 60) {
         const crossings = await redis.incr(crossingKey);
+        // ponytail: set TTL so orphaned keys don't accumulate forever
+        await redis.expire(crossingKey, 90000); // 25 hours
         if (crossings >= 3) {
           shouldTrigger = true; // PAUSE (upgrade)
         } else {

@@ -87,15 +87,9 @@ export class AutopilotScoreService {
       const domain = sig.activeDomain || 'unknown';
       domainCounts[domain] = (domainCounts[domain] || 0) + 1;
     }
-    let dominantDomain = 'unknown';
-    let maxCount = 0;
-    for (const [domain, count] of Object.entries(domainCounts)) {
-      if (count > maxCount) {
-        maxCount = count;
-        dominantDomain = domain;
-      }
-    }
-    dominantDomain = dominantDomain.toLowerCase();
+    const dominantDomain = Object.entries(domainCounts)
+      .reduce((a, b) => (b[1] > a[1] ? b : a), ['unknown', 0])[0]
+      .toLowerCase();
 
     const isSocial =
       dominantDomain.includes('twitter.com') ||

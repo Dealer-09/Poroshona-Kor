@@ -3,7 +3,6 @@ import {
   WebSocketServer,
   SubscribeMessage,
   OnGatewayConnection,
-  OnGatewayDisconnect,
   ConnectedSocket,
   MessageBody,
 } from '@nestjs/websockets';
@@ -44,7 +43,6 @@ interface JwtPayload {
 export class SignalsGateway
   implements
     OnGatewayConnection,
-    OnGatewayDisconnect,
     OnModuleInit,
     OnModuleDestroy
 {
@@ -134,9 +132,6 @@ export class SignalsGateway
     }
   }
 
-  handleDisconnect() {
-    // cleanup on disconnect
-  }
 
   @SubscribeMessage('session:start')
   @UsePipes(new ValidationPipe({ transform: true }))

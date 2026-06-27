@@ -112,7 +112,7 @@ sequenceDiagram
 
 ### Security & Hardening
 - **BYOK (Bring Your Own Key):** Users can supply their own Groq API keys, which are securely encrypted at rest using **AES-256-GCM** before being stored in PostgreSQL.
-- **Memory Safety & Rate Limiting:** Built-in Redis garbage collection and LRU Map caching prevent backend memory leaks. Signal batching (every ~30s) prevents database hammering. Intervention cooldowns enforced via Redis TTL keys.
+- **Memory Safety & Rate Limiting:** Built-in Redis garbage collection and FIFO classification cache prevent backend memory leaks. Signal batching (every ~30s) prevents database hammering. Intervention cooldowns enforced via Redis TTL keys.
 - **Global Error Handling:** An `AllExceptionsFilter` intercepts unhandled runtime exceptions, preventing server crashes and securely masking sensitive stack traces from clients.
 
 ### User Interface
@@ -129,10 +129,7 @@ Follow these steps to run the complete monorepo locally.
 ### 1. Prerequisites
 - **[Bun](https://bun.sh/)** installed on your machine.
 - A **PostgreSQL** database (Supabase highly recommended).
-- A **Redis** server running locally (Docker recommended):
-  ```bash
-  docker run --name local-redis -p 6379:6379 -d redis:alpine
-  ```
+- **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** for local Postgres + Redis (a `docker-compose.yml` is included).
 
 ### 2. Installation
 Clone the repository and install all dependencies from the `autopilot-detector` directory:
@@ -160,15 +157,20 @@ cp apps/web/.env.example apps/web/.env.local
 - `NEXT_PUBLIC_WS_URL=ws://localhost:3001`
 - `API_URL=http://localhost:3001` ← required for server-side fetches
 
-### 4. Database Initialization
+### 4. Start local dependencies
+```bash
+docker compose up -d
+```
+
+### 5. Database Initialization
 ```bash
 cd apps/api
 bunx prisma generate
-bunx prisma db push
+bunx prisma migrate deploy
 cd ../..
 ```
 
-### 5. Start the Application
+### 6. Start the Application
 ```bash
 bun run dev
 ```
@@ -188,12 +190,22 @@ This command utilizes Turborepo to simultaneously start the NestJS API, Next.js 
 
 ---
 
+## Self-Improving ML Loop
+
+The app collects its own training data. Every session you run writes `SessionEvent` rows to Postgres. When you rate your mood after a session, those events are automatically weakly-labeled (`onsetLabel`). Once you have enough sessions, retrain the LSTM model on your own data:
+
+```bash
+cd autopilot-detector/apps/ml
+pip install -r requirements.txt
+python train.py
+# restart the API — it picks up the new model.onnx automatically
+```
+
+The pre-trained `model.onnx` is used until you retrain. The more you use it, the better it gets at predicting autopilot *before* the score spikes.
+
 ## Future Scope
 
-1. **Machine Learning Microservice:**
-   - A dedicated Python FastAPI service running **XGBoost** with GPU acceleration.
-   - Will replace heuristic scores by predicting doomscroll probability based on trained datasets of real user behavioral windows.
-2. **Advanced Cognitive Health Analytics:**
+1. **Advanced Cognitive Health Analytics:**
    - 7×24 heatmaps identifying the user's "Riskiest Hours" and "Healthiest Days".
-3. **Mobile App Integration:**
+2. **Mobile App Integration:**
    - Expanding the tracking ecosystem to native mobile platforms using React Native, utilizing screen-time APIs to aggregate mobile and desktop habits into a single cognitive profile.

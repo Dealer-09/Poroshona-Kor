@@ -136,9 +136,9 @@ export class SessionsService {
     sessionId: string,
     moodRating: number,
   ): Promise<number> {
-    const ONSET_DRIFT_THRESHOLD = 60; // drift considered "in autopilot"
-    const ONSET_HORIZON_MS = 5 * 60 * 1000; // look-ahead window: 5 minutes
-    const SUSTAIN_COUNT = 2; // need ≥2 consecutive high-drift steps to count as onset
+    const ONSET_DRIFT_THRESHOLD = 60;
+    const ONSET_HORIZON_MS = 5 * 60 * 1000;
+    const SUSTAIN_COUNT = 2;
 
     const events = await this.prisma.sessionEvent.findMany({
       where: { sessionId },
@@ -147,33 +147,36 @@ export class SessionsService {
     });
     if (events.length === 0) return 0;
 
+    // Compute labels in memory (same logic as before)
     const sessionWasBad = moodRating <= 3;
-
-    const updates = events.map((ev, i) => {
+    const labeled = events.map((ev, i) => {
       let onsetLabel = false;
       if (sessionWasBad) {
         const horizonEnd = ev.timestamp.getTime() + ONSET_HORIZON_MS;
         let consecutive = 0;
         for (let j = i + 1; j < events.length; j++) {
           if (events[j].timestamp.getTime() > horizonEnd) break;
-          if (events[j].runningDrift >= ONSET_DRIFT_THRESHOLD) {
-            consecutive++;
-            if (consecutive >= SUSTAIN_COUNT) {
-              onsetLabel = true;
-              break;
-            }
+          if ((events[j].runningDrift ?? 0) >= ONSET_DRIFT_THRESHOLD) {
+            if (++consecutive >= SUSTAIN_COUNT) { onsetLabel = true; break; }
           } else {
             consecutive = 0;
           }
         }
       }
-      return this.prisma.sessionEvent.update({
-        where: { id: ev.id },
-        data: { onsetLabel },
-      });
+      return { id: ev.id, onsetLabel };
     });
 
-    await this.prisma.$transaction(updates);
-    return updates.length;
+    // ponytail: one bulk write instead of N individual updates in a transaction
+    const trueIds = labeled.filter((l) => l.onsetLabel).map((l) => l.id);
+    const falseIds = labeled.filter((l) => !l.onsetLabel).map((l) => l.id);
+    await this.prisma.$transaction([
+      ...(trueIds.length > 0
+        ? [this.prisma.sessionEvent.updateMany({ where: { id: { in: trueIds } }, data: { onsetLabel: true } })]
+        : []),
+      ...(falseIds.length > 0
+        ? [this.prisma.sessionEvent.updateMany({ where: { id: { in: falseIds } }, data: { onsetLabel: false } })]
+        : []),
+    ]);
+    return labeled.length;
   }
 }

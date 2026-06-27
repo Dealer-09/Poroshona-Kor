@@ -8,8 +8,8 @@ console.log("Autopilot Detector Background Service Worker running.");
 // --- TAB TRACKING STATE ---
 let tabSwitchCount = 0;
 let rapidSwitchWindowCount = 0;
-let rapidSwitchResetTimeout: ReturnType<typeof setTimeout> | null = null;
-const RAPID_SWITCH_WINDOW_MS = 60000; // 60 seconds
+// ponytail: chrome.alarms instead of setTimeout — SW can be suspended mid-timeout in MV3
+const RAPID_SWITCH_ALARM = "resetRapidSwitch";
 
 // Reset total tabSwitchCount every 30 minutes
 chrome.alarms.create("resetTabCount", { periodInMinutes: 30 });
@@ -43,6 +43,10 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
   if (alarm.name === "resetTabCount") {
     tabSwitchCount = 0;
+  }
+
+  if (alarm.name === RAPID_SWITCH_ALARM) {
+    rapidSwitchWindowCount = 0;
   }
 
   // Stage 2: Reset daily usage at midnight
@@ -137,16 +141,12 @@ const handleTabSwitch = () => {
   // Rapid switching detection (>5 switches in 60s)
   if (rapidSwitchWindowCount > 5) {
     console.warn("Rapid tab switching detected!");
-    // In future phases, we could dispatch an immediate signal here
   }
 
-  // Reset rapid switch window after 60s of the FIRST switch in the window
-  if (!rapidSwitchResetTimeout) {
-    rapidSwitchResetTimeout = setTimeout(() => {
-      rapidSwitchWindowCount = 0;
-      rapidSwitchResetTimeout = null;
-    }, RAPID_SWITCH_WINDOW_MS);
-  }
+  // Reset the rapid-switch window via alarm (survives SW suspension unlike setTimeout)
+  chrome.alarms.get(RAPID_SWITCH_ALARM, (existing) => {
+    if (!existing) chrome.alarms.create(RAPID_SWITCH_ALARM, { delayInMinutes: 1 });
+  });
 };
 
 chrome.tabs.onActivated.addListener(handleTabSwitch);
@@ -354,9 +354,10 @@ const connectWebSocket = async () => {
 
     // Save to local storage
     const result = await chrome.storage.local.get(["interventions"]);
-    const list = result.interventions || [];
+    const list: object[] = result.interventions || [];
     list.push({ ...intervention, timestamp: new Date().toISOString() });
-    await chrome.storage.local.set({ interventions: list });
+    // ponytail: cap at 50 so we never hit Chrome's 5MB local storage quota
+    await chrome.storage.local.set({ interventions: list.slice(-50) });
 
     // Handle by type
     if (intervention.type === "NUDGE") {
@@ -511,6 +512,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       await ensureSocketConnected();
       currentIntent = message.payload.intent;
       await persistSessionState();
+
+      // ponytail: ensureSocketConnected only *initiates* — wait for actual connect
+      if (!socket) return;
+      if (!socket.connected) {
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error("socket timeout")), 5000);
+          socket!.once("connect", () => { clearTimeout(timeout); resolve(); });
+          socket!.once("connect_error", (e) => { clearTimeout(timeout); reject(e); });
+        }).catch((e) => { console.warn("START_SESSION: socket failed to connect:", e); return null; });
+      }
       if (!socket?.connected) {
         console.warn("Cannot start session — socket not connected.");
         return;
@@ -528,6 +539,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     })();
     return;
   }
+
 
   // Handle Session End from Popup
   if (message.type === "END_SESSION") {
